@@ -186,11 +186,12 @@ jobs:
               VERSION_REPO="https://downloads.openwrt.org/releases/SNAPSHOT"
             fi
             
+            # Remove telephony feed to avoid rtpengine build issues
+            # We'll build only essential packages for the router
             printf '%s\n' \
               'CONFIG_TARGET_mediatek=y' \
               'CONFIG_TARGET_mediatek_filogic=y' \
               'CONFIG_TARGET_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t=y' \
-              'CONFIG_ALL_NONSHARED=y' \
               'CONFIG_DEVEL=y' \
               'CONFIG_AUTOREMOVE=y' \
               'CONFIG_BUILDBOT=y' \
@@ -202,22 +203,10 @@ jobs:
               'CONFIG_KERNEL_BUILD_USER="builder"' \
               '# CONFIG_KERNEL_KALLSYMS is not set' \
               'CONFIG_MAKE_TOOLCHAIN=y' \
+              '# Base system packages' \
               'CONFIG_PACKAGE_cgi-io=y' \
-              'CONFIG_PACKAGE_e2fsprogs=m' \
-              'CONFIG_PACKAGE_f2fsck=m' \
-              'CONFIG_PACKAGE_fdisk=m' \
-              'CONFIG_PACKAGE_libblkid=m' \
-              'CONFIG_PACKAGE_libcomerr=m' \
-              'CONFIG_PACKAGE_libe2p=m' \
-              'CONFIG_PACKAGE_libext2fs=m' \
-              'CONFIG_PACKAGE_libf2fs=m' \
-              'CONFIG_PACKAGE_libfdisk=m' \
               'CONFIG_PACKAGE_liblucihttp=y' \
               'CONFIG_PACKAGE_liblucihttp-ucode=y' \
-              'CONFIG_PACKAGE_libncurses=m' \
-              'CONFIG_PACKAGE_libsmartcols=m' \
-              'CONFIG_PACKAGE_libss=m' \
-              'CONFIG_PACKAGE_libuuid=m' \
               'CONFIG_PACKAGE_luci=y' \
               'CONFIG_PACKAGE_luci-app-firewall=y' \
               'CONFIG_PACKAGE_luci-app-package-manager=y' \
@@ -231,12 +220,6 @@ jobs:
               'CONFIG_PACKAGE_luci-proto-ppp=y' \
               'CONFIG_PACKAGE_luci-ssl=y' \
               'CONFIG_PACKAGE_luci-theme-bootstrap=y' \
-              'CONFIG_PACKAGE_mkf2fs=m' \
-              'CONFIG_PACKAGE_mt7981-wo-firmware=m' \
-              'CONFIG_PACKAGE_mt7986-wo-firmware=m' \
-              'CONFIG_PACKAGE_mt7988-2p5g-phy-firmware=m' \
-              'CONFIG_PACKAGE_mt7988-wo-firmware=m' \
-              'CONFIG_PACKAGE_partx-utils=m' \
               'CONFIG_PACKAGE_px5g-mbedtls=y' \
               'CONFIG_PACKAGE_rpcd=y' \
               'CONFIG_PACKAGE_rpcd-mod-file=y' \
@@ -244,12 +227,34 @@ jobs:
               'CONFIG_PACKAGE_rpcd-mod-luci=y' \
               'CONFIG_PACKAGE_rpcd-mod-rrdns=y' \
               'CONFIG_PACKAGE_rpcd-mod-ucode=y' \
-              'CONFIG_PACKAGE_terminfo=m' \
               'CONFIG_PACKAGE_ucode-mod-html=y' \
               'CONFIG_PACKAGE_ucode-mod-math=y' \
               'CONFIG_PACKAGE_uhttpd=y' \
               'CONFIG_PACKAGE_uhttpd-mod-ubus=y' \
+              '# Filesystem and disk utilities' \
+              'CONFIG_PACKAGE_e2fsprogs=m' \
+              'CONFIG_PACKAGE_f2fsck=m' \
+              'CONFIG_PACKAGE_fdisk=m' \
+              'CONFIG_PACKAGE_libblkid=m' \
+              'CONFIG_PACKAGE_libcomerr=m' \
+              'CONFIG_PACKAGE_libe2p=m' \
+              'CONFIG_PACKAGE_libext2fs=m' \
+              'CONFIG_PACKAGE_libf2fs=m' \
+              'CONFIG_PACKAGE_libfdisk=m' \
+              'CONFIG_PACKAGE_libncurses=m' \
+              'CONFIG_PACKAGE_libsmartcols=m' \
+              'CONFIG_PACKAGE_libss=m' \
+              'CONFIG_PACKAGE_libuuid=m' \
+              'CONFIG_PACKAGE_mkf2fs=m' \
+              'CONFIG_PACKAGE_partx-utils=m' \
+              'CONFIG_PACKAGE_terminfo=m' \
+              '# Firmware packages' \
+              'CONFIG_PACKAGE_mt7981-wo-firmware=m' \
+              'CONFIG_PACKAGE_mt7986-wo-firmware=m' \
+              'CONFIG_PACKAGE_mt7988-2p5g-phy-firmware=m' \
+              'CONFIG_PACKAGE_mt7988-wo-firmware=m' \
               'CONFIG_PACKAGE_zyxel-bootconfig=m' \
+              '# Build options' \
               'CONFIG_REPRODUCIBLE_DEBUG_INFO=y' \
               'CONFIG_SDK=y' \
               'CONFIG_SDK_LLVM_BPF=y' \
@@ -354,6 +359,11 @@ jobs:
             ### Changes
             - Increased UBI partition to 0xce00000
             - Adjusted KF partition offset to 0xF600000
+            
+            ### Included Packages
+            - Luci web interface with SSL
+            - Wireless firmware for MT7981/MT7986/MT7988
+            - Basic system utilities
             
             ### ⚠️ Warning
             Flash at your own risk. Verify checksums before flashing.
