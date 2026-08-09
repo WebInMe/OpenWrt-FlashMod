@@ -86,8 +86,10 @@ jobs:
           sudo apt install -y build-essential git subversion libncurses5-dev \
             zlib1g-dev gawk flex wget unzip python3 python3-pip python3-venv \
             libssl-dev file rsync curl time gcc-multilib \
-            libelf-dev dwarves libzstd-dev qemu-utils
-      
+            libelf-dev dwarves libzstd-dev qemu-utils \
+            python3-distutils python3-setuptools python3-pytest \
+            python3-pyparsing python3-yaml
+        
       - name: Clone OpenWrt
         id: clone
         run: |
@@ -99,21 +101,6 @@ jobs:
           cd openwrt
           echo "Current branch: $(git branch --show-current)"
           echo "Commit: $(git rev-parse --short HEAD)"
-      
-      - name: Check for existing config and patch files
-        id: check_files
-        run: |
-          if [ -f .config ]; then
-            echo "config_exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "config_exists=false" >> $GITHUB_OUTPUT
-          fi
-          
-          if [ -f custom.patch ]; then
-            echo "patch_exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "patch_exists=false" >> $GITHUB_OUTPUT
-          fi
       
       - name: Apply custom patch
         run: |
@@ -199,11 +186,11 @@ jobs:
               VERSION_REPO="https://downloads.openwrt.org/releases/SNAPSHOT"
             fi
             
+            # Updated config without ALL_KMODS to avoid compilation issues
             printf '%s\n' \
               'CONFIG_TARGET_mediatek=y' \
               'CONFIG_TARGET_mediatek_filogic=y' \
               'CONFIG_TARGET_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t=y' \
-              'CONFIG_ALL_KMODS=y' \
               'CONFIG_ALL_NONSHARED=y' \
               'CONFIG_DEVEL=y' \
               'CONFIG_AUTOREMOVE=y' \
@@ -220,12 +207,12 @@ jobs:
               'CONFIG_PACKAGE_e2fsprogs=m' \
               'CONFIG_PACKAGE_f2fsck=m' \
               'CONFIG_PACKAGE_fdisk=m' \
-              'CONFIG_PACKAGE_kmod-mt76=y' \
-              'CONFIG_PACKAGE_kmod-mt7603=y' \
-              'CONFIG_PACKAGE_kmod-mt76x02-common=y' \
-              'CONFIG_PACKAGE_kmod-mt76x2=y' \
-              'CONFIG_PACKAGE_kmod-mt76x2-common=y' \
-              'CONFIG_PACKAGE_kmod-mt7915-firmware=y' \
+              '# CONFIG_PACKAGE_kmod-mt76 is not set' \
+              '# CONFIG_PACKAGE_kmod-mt7603 is not set' \
+              '# CONFIG_PACKAGE_kmod-mt76x02-common is not set' \
+              '# CONFIG_PACKAGE_kmod-mt76x2 is not set' \
+              '# CONFIG_PACKAGE_kmod-mt76x2-common is not set' \
+              '# CONFIG_PACKAGE_kmod-mt7915-firmware is not set' \
               'CONFIG_PACKAGE_libblkid=m' \
               'CONFIG_PACKAGE_libcomerr=m' \
               'CONFIG_PACKAGE_libe2p=m' \
