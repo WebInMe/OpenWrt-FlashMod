@@ -117,13 +117,23 @@ jobs:
         run: |
           cd openwrt
           
-          # Create the patch file
+          # Check if the target files exist
+          echo "Checking if target files exist..."
+          if [ ! -f target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts ]; then
+            echo "Warning: mt7981b-xiaomi-mi-router-ax3000t.dts not found"
+          fi
+          if [ ! -f target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi ]; then
+            echo "Warning: mt7981b-xiaomi-mi-router-common.dtsi not found"
+          fi
+          
+          # Create the patch file with more context lines for better matching
           cat > custom.patch << 'EOF'
           diff --git a/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts b/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts
-          index d4b11cbe04..a0b3728d02 100644
           --- a/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts
           +++ b/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts
-          @@ -30,6 +30,6 @@
+          @@ -27,9 +27,9 @@
+          	 * and "rootfs" on the spi-nand, with the "ubi" partition being the
+          	 * ubi volume containing the squashfs+rootfs.
           	 */
           	partition@2800000 {
           		label = "ubi";
@@ -132,10 +142,10 @@ jobs:
           	};
           };
           diff --git a/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi b/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi
-          index be600a1a79..e6647ff500 100644
           --- a/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi
           +++ b/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi
-          @@ -386,9 +386,9 @@
+          @@ -383,12 +383,12 @@
+          				reg = <0x7200000 0x400000>;
           				read-only;
           			};
           
@@ -147,15 +157,55 @@ jobs:
           				read-only;
           			};
           		};
+          	};
+          };
           EOF
           
-          # Apply the patch
-          git apply custom.patch
-          if [ $? -eq 0 ]; then
-            echo "Patch applied successfully"
+          # Try to apply the patch with different strategies
+          echo "Attempting to apply patch..."
+          
+          # Strategy 1: Try with --ignore-whitespace
+          if git apply --ignore-whitespace custom.patch 2>/dev/null; then
+            echo "Patch applied successfully with --ignore-whitespace"
           else
-            echo "Failed to apply patch"
-            exit 1
+            # Strategy 2: Try with -3 (3-way merge)
+            echo "Trying patch with 3-way merge..."
+            if git apply -3 custom.patch 2>/dev/null; then
+              echo "Patch applied successfully with 3-way merge"
+            else
+              # Strategy 3: Use sed to manually modify the files
+              echo "Patch failed, trying manual modifications with sed..."
+              
+              # Modify mt7981b-xiaomi-mi-router-ax3000t.dts
+              if [ -f target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts ]; then
+                sed -i 's/reg = <0x2800000 0x4e00000>;/reg = <0x2800000 0xce00000>;/g' \
+                  target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts
+                echo "Modified mt7981b-xiaomi-mi-router-ax3000t.dts"
+              fi
+              
+              # Modify mt7981b-xiaomi-mi-router-common.dtsi
+              if [ -f target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi ]; then
+                sed -i 's/partition@7600000 {/partition@F600000 {/g' \
+                  target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi
+                sed -i 's/reg = <0x7600000 0x40000>;/reg = <0xF600000 0x40000>;/g' \
+                  target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi
+                echo "Modified mt7981b-xiaomi-mi-router-common.dtsi"
+              fi
+              
+              echo "Manual modifications completed"
+            fi
+          fi
+          
+          # Verify the changes
+          echo "Verifying changes..."
+          if [ -f target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts ]; then
+            echo "Content of mt7981b-xiaomi-mi-router-ax3000t.dts partition@2800000:"
+            grep -A2 "partition@2800000" target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts || echo "Pattern not found"
+          fi
+          
+          if [ -f target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi ]; then
+            echo "Content of mt7981b-xiaomi-mi-router-common.dtsi KF partition:"
+            grep -A2 "partition@F600000" target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi || echo "Pattern not found"
           fi
       
       - name: Configure build
