@@ -60,19 +60,28 @@ jobs:
           
           # Get version from include/version.mk
           if [ -f include/version.mk ]; then
-            # Extract version number
-            VERSION_NUMBER=$(grep "VERSION_NUMBER:=" include/version.mk | cut -d'=' -f2 | tr -d ' ')
-            # Extract version repo
-            VERSION_REPO=$(grep "VERSION_REPO:=" include/version.mk | cut -d'=' -f2- | tr -d ' ' | sed 's/"//g')
+            # Extract version number and clean it
+            VERSION_NUMBER=$(grep "^VERSION_NUMBER:=" include/version.mk | cut -d'=' -f2 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr -d '"')
+            # Extract version repo and clean it
+            VERSION_REPO=$(grep "^VERSION_REPO:=" include/version.mk | cut -d'=' -f2- | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr -d '"')
+            
+            # If VERSION_NUMBER is empty or contains function calls, use fallback
+            if [ -z "$VERSION_NUMBER" ] || [[ "$VERSION_NUMBER" == *"\$("* ]]; then
+              VERSION_NUMBER="SNAPSHOT"
+            fi
+            
+            # If VERSION_REPO is empty or contains function calls, use fallback
+            if [ -z "$VERSION_REPO" ] || [[ "$VERSION_REPO" == *"\$("* ]]; then
+              VERSION_REPO="https://downloads.openwrt.org/releases/SNAPSHOT"
+            fi
             
             echo "openwrt_version=$VERSION_NUMBER" >> $GITHUB_OUTPUT
             echo "version_repo=$VERSION_REPO" >> $GITHUB_OUTPUT
             echo "Detected OpenWrt version: $VERSION_NUMBER"
             echo "Detected version repo: $VERSION_REPO"
           else
-            # Fallback to checking version from version file
-            echo "openwrt_version=unknown" >> $GITHUB_OUTPUT
-            echo "version_repo=https://downloads.openwrt.org/releases/unknown" >> $GITHUB_OUTPUT
+            echo "openwrt_version=SNAPSHOT" >> $GITHUB_OUTPUT
+            echo "version_repo=https://downloads.openwrt.org/releases/SNAPSHOT" >> $GITHUB_OUTPUT
           fi
           
           cd ..
@@ -93,8 +102,9 @@ jobs:
             libelf-dev dwarves libzstd-dev qemu-utils
       
       - name: Clone OpenWrt
+        id: clone
         run: |
-          if [ "${{ needs.check-and-build.outputs.branch_name }}" != "" ]; then
+          if [ "${{ needs.check-and-build.outputs.branch_name }}" != "" ] && [ "${{ needs.check-and-build.outputs.branch_name }}" != "null" ]; then
             git clone -b ${{ needs.check-and-build.outputs.branch_name }} https://github.com/openwrt/openwrt.git openwrt
           else
             git clone https://github.com/openwrt/openwrt.git openwrt
@@ -156,9 +166,18 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a
           
-          # Get the actual version from the cloned source
-          VERSION_REPO=$(grep "VERSION_REPO:=" include/version.mk | cut -d'=' -f2- | tr -d ' ' | sed 's/"//g')
-          VERSION_NUMBER=$(grep "VERSION_NUMBER:=" include/version.mk | cut -d'=' -f2 | tr -d ' ')
+          # Get the actual version from the cloned source with proper cleaning
+          VERSION_REPO=$(grep "^VERSION_REPO:=" include/version.mk | cut -d'=' -f2- | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr -d '"')
+          VERSION_NUMBER=$(grep "^VERSION_NUMBER:=" include/version.mk | cut -d'=' -f2 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr -d '"')
+          
+          # Clean the values - if they contain function calls, use defaults
+          if [[ "$VERSION_NUMBER" == *"\$("* ]] || [ -z "$VERSION_NUMBER" ]; then
+            VERSION_NUMBER="SNAPSHOT"
+          fi
+          
+          if [[ "$VERSION_REPO" == *"\$("* ]] || [ -z "$VERSION_REPO" ]; then
+            VERSION_REPO="https://downloads.openwrt.org/releases/SNAPSHOT"
+          fi
           
           echo "Using Version Repo: $VERSION_REPO"
           echo "Using Version Number: $VERSION_NUMBER"
@@ -280,8 +299,11 @@ jobs:
         run: |
           cd openwrt/bin/targets/mediatek/filogic
           
-          # Get version info
-          VERSION_NUMBER=$(grep "VERSION_NUMBER:=" ../../../../../include/version.mk | cut -d'=' -f2 | tr -d ' ')
+          # Get version info with proper cleaning
+          VERSION_NUMBER=$(grep "^VERSION_NUMBER:=" ../../../../../include/version.mk | cut -d'=' -f2 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr -d '"')
+          if [[ "$VERSION_NUMBER" == *"\$("* ]] || [ -z "$VERSION_NUMBER" ]; then
+            VERSION_NUMBER="SNAPSHOT"
+          fi
           
           # Get the build date and commit hash for naming
           BUILD_DATE=$(date +%Y%m%d)
@@ -325,7 +347,6 @@ jobs:
             - **Build Date**: $(date '+%Y-%m-%d %H:%M:%S UTC')
             - **OpenWrt Version**: ${{ needs.check-and-build.outputs.openwrt_version }}
             - **Branch**: ${{ needs.check-and-build.outputs.branch_name || 'main' }}
-            - **Commit**: $(cd openwrt && git rev-parse --short HEAD)
             - **Version Repo**: ${{ needs.check-and-build.outputs.version_repo }}
             
             ### Changes Applied
