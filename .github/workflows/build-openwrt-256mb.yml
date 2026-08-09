@@ -105,107 +105,99 @@ jobs:
         id: clone
         run: |
           if [ "${{ needs.check-and-build.outputs.branch_name }}" != "" ] && [ "${{ needs.check-and-build.outputs.branch_name }}" != "null" ]; then
-            git clone -b ${{ needs.check-and-build.outputs.branch_name }} https://github.com/openwrt/openwrt.git openwrt
+            git clone -b ${{ needs.check-and-build.outputs.branch_name }} --depth 1 https://github.com/openwrt/openwrt.git openwrt
           else
-            git clone https://github.com/openwrt/openwrt.git openwrt
+            git clone --depth 1 https://github.com/openwrt/openwrt.git openwrt
           fi
           cd openwrt
           echo "Current branch: $(git branch --show-current)"
           echo "Commit: $(git rev-parse --short HEAD)"
       
+      - name: Check for existing config and patch files
+        id: check_files
+        run: |
+          # Check if .config exists in the repository root
+          if [ -f .config ]; then
+            echo "config_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "config_exists=false" >> $GITHUB_OUTPUT
+          fi
+          
+          # Check if custom.patch exists in the repository root
+          if [ -f custom.patch ]; then
+            echo "patch_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "patch_exists=false" >> $GITHUB_OUTPUT
+          fi
+      
       - name: Apply custom patch
         run: |
           cd openwrt
           
-          # Check if the target files exist
-          echo "Checking if target files exist..."
-          if [ ! -f target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts ]; then
-            echo "Warning: mt7981b-xiaomi-mi-router-ax3000t.dts not found"
-          fi
-          if [ ! -f target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi ]; then
-            echo "Warning: mt7981b-xiaomi-mi-router-common.dtsi not found"
-          fi
-          
-          # Create the patch file with more context lines for better matching
-          cat > custom.patch << 'EOF'
-          diff --git a/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts b/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts
-          --- a/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts
-          +++ b/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts
-          @@ -27,9 +27,9 @@
-          	 * and "rootfs" on the spi-nand, with the "ubi" partition being the
-          	 * ubi volume containing the squashfs+rootfs.
-          	 */
-          	partition@2800000 {
-          		label = "ubi";
-          -		reg = <0x2800000 0x4e00000>;
-          +		reg = <0x2800000 0xce00000>;
-          	};
-          };
-          diff --git a/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi b/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi
-          --- a/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi
-          +++ b/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi
-          @@ -383,12 +383,12 @@
-          				reg = <0x7200000 0x400000>;
-          				read-only;
-          			};
-          
-          -			partition@7600000 {
-          +			partition@F600000 {
-          				label = "KF";
-          -				reg = <0x7600000 0x40000>;
-          +				reg = <0xF600000 0x40000>;
-          				read-only;
-          			};
-          		};
-          	};
-          };
-          EOF
-          
-          # Try to apply the patch with different strategies
-          echo "Attempting to apply patch..."
-          
-          # Strategy 1: Try with --ignore-whitespace
-          if git apply --ignore-whitespace custom.patch 2>/dev/null; then
-            echo "Patch applied successfully with --ignore-whitespace"
-          else
-            # Strategy 2: Try with -3 (3-way merge)
-            echo "Trying patch with 3-way merge..."
-            if git apply -3 custom.patch 2>/dev/null; then
-              echo "Patch applied successfully with 3-way merge"
-            else
-              # Strategy 3: Use sed to manually modify the files
-              echo "Patch failed, trying manual modifications with sed..."
-              
-              # Modify mt7981b-xiaomi-mi-router-ax3000t.dts
-              if [ -f target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts ]; then
-                sed -i 's/reg = <0x2800000 0x4e00000>;/reg = <0x2800000 0xce00000>;/g' \
-                  target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts
-                echo "Modified mt7981b-xiaomi-mi-router-ax3000t.dts"
+          # Check if patch file exists in repository
+          if [ -f ../custom.patch ]; then
+            cp ../custom.patch .
+            
+            # Try to apply the patch
+            if ! git apply --ignore-whitespace custom.patch 2>/dev/null; then
+              if ! git apply -3 custom.patch 2>/dev/null; then
+                # Manual modifications
+                if grep -q "reg = <0x2800000 0x4e00000>" target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts 2>/dev/null; then
+                  sed -i 's/reg = <0x2800000 0x4e00000>;/reg = <0x2800000 0xce00000>;/g' \
+                    target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts
+                fi
+                
+                if grep -q "partition@7600000" target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi 2>/dev/null; then
+                  sed -i 's/partition@7600000 {/partition@F600000 {/g' \
+                    target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi
+                  sed -i 's/reg = <0x7600000 0x40000>;/reg = <0xF600000 0x40000>;/g' \
+                    target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi
+                fi
               fi
-              
-              # Modify mt7981b-xiaomi-mi-router-common.dtsi
-              if [ -f target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi ]; then
-                sed -i 's/partition@7600000 {/partition@F600000 {/g' \
-                  target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi
-                sed -i 's/reg = <0x7600000 0x40000>;/reg = <0xF600000 0x40000>;/g' \
-                  target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi
-                echo "Modified mt7981b-xiaomi-mi-router-common.dtsi"
-              fi
-              
-              echo "Manual modifications completed"
             fi
-          fi
-          
-          # Verify the changes
-          echo "Verifying changes..."
-          if [ -f target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts ]; then
-            echo "Content of mt7981b-xiaomi-mi-router-ax3000t.dts partition@2800000:"
-            grep -A2 "partition@2800000" target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts || echo "Pattern not found"
-          fi
-          
-          if [ -f target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi ]; then
-            echo "Content of mt7981b-xiaomi-mi-router-common.dtsi KF partition:"
-            grep -A2 "partition@F600000" target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi || echo "Pattern not found"
+          else
+            # Create the patch file
+            cat > custom.patch << 'EOF'
+            diff --git a/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts b/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts
+            --- a/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts
+            +++ b/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts
+            @@ -27,9 +27,9 @@
+            	partition@2800000 {
+            		label = "ubi";
+            -		reg = <0x2800000 0x4e00000>;
+            +		reg = <0x2800000 0xce00000>;
+            	};
+            };
+            diff --git a/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi b/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi
+            --- a/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi
+            +++ b/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi
+            @@ -383,12 +383,12 @@
+            -			partition@7600000 {
+            +			partition@F600000 {
+            				label = "KF";
+            -				reg = <0x7600000 0x40000>;
+            +				reg = <0xF600000 0x40000>;
+            				read-only;
+            			};
+            EOF
+            
+            # Try to apply the patch
+            if ! git apply --ignore-whitespace custom.patch 2>/dev/null; then
+              if ! git apply -3 custom.patch 2>/dev/null; then
+                # Manual modifications
+                if [ -f target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts ]; then
+                  sed -i 's/reg = <0x2800000 0x4e00000>;/reg = <0x2800000 0xce00000>;/g' \
+                    target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts
+                fi
+                
+                if [ -f target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi ]; then
+                  sed -i 's/partition@7600000 {/partition@F600000 {/g' \
+                    target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi
+                  sed -i 's/reg = <0x7600000 0x40000>;/reg = <0xF600000 0x40000>;/g' \
+                    target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi
+                fi
+              fi
+            fi
           fi
       
       - name: Configure build
@@ -216,114 +208,115 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a
           
-          # Get the actual version from the cloned source with proper cleaning
-          VERSION_REPO=$(grep "^VERSION_REPO:=" include/version.mk | cut -d'=' -f2- | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr -d '"')
-          VERSION_NUMBER=$(grep "^VERSION_NUMBER:=" include/version.mk | cut -d'=' -f2 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr -d '"')
-          
-          # Clean the values - if they contain function calls, use defaults
-          if [[ "$VERSION_NUMBER" == *"\$("* ]] || [ -z "$VERSION_NUMBER" ]; then
-            VERSION_NUMBER="SNAPSHOT"
+          # Check if .config exists in repository
+          if [ -f ../.config ]; then
+            cp ../.config .
+          else
+            # Get version info
+            VERSION_REPO=$(grep "^VERSION_REPO:=" include/version.mk | cut -d'=' -f2- | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr -d '"')
+            VERSION_NUMBER=$(grep "^VERSION_NUMBER:=" include/version.mk | cut -d'=' -f2 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr -d '"')
+            
+            if [[ "$VERSION_NUMBER" == *"\$("* ]] || [ -z "$VERSION_NUMBER" ]; then
+              VERSION_NUMBER="SNAPSHOT"
+            fi
+            
+            if [[ "$VERSION_REPO" == *"\$("* ]] || [ -z "$VERSION_REPO" ]; then
+              VERSION_REPO="https://downloads.openwrt.org/releases/SNAPSHOT"
+            fi
+            
+            # Create config file
+            cat > .config << EOF
+            CONFIG_TARGET_mediatek=y
+            CONFIG_TARGET_mediatek_filogic=y
+            CONFIG_TARGET_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t=y
+            CONFIG_ALL_KMODS=y
+            CONFIG_ALL_NONSHARED=y
+            CONFIG_DEVEL=y
+            CONFIG_AUTOREMOVE=y
+            CONFIG_BUILDBOT=y
+            CONFIG_COLLECT_KERNEL_DEBUG=y
+            CONFIG_IB=y
+            CONFIG_IMAGEOPT=y
+            CONFIG_JSON_CYCLONEDX_SBOM=y
+            CONFIG_KERNEL_BUILD_DOMAIN="buildhost"
+            CONFIG_KERNEL_BUILD_USER="builder"
+            # CONFIG_KERNEL_KALLSYMS is not set
+            CONFIG_MAKE_TOOLCHAIN=y
+            CONFIG_PACKAGE_cgi-io=y
+            CONFIG_PACKAGE_e2fsprogs=m
+            CONFIG_PACKAGE_f2fsck=m
+            CONFIG_PACKAGE_fdisk=m
+            CONFIG_PACKAGE_kmod-mt76=y
+            CONFIG_PACKAGE_kmod-mt7603=y
+            CONFIG_PACKAGE_kmod-mt76x02-common=y
+            CONFIG_PACKAGE_kmod-mt76x2=y
+            CONFIG_PACKAGE_kmod-mt76x2-common=y
+            CONFIG_PACKAGE_kmod-mt7915-firmware=y
+            CONFIG_PACKAGE_libblkid=m
+            CONFIG_PACKAGE_libcomerr=m
+            CONFIG_PACKAGE_libe2p=m
+            CONFIG_PACKAGE_libext2fs=m
+            CONFIG_PACKAGE_libf2fs=m
+            CONFIG_PACKAGE_libfdisk=m
+            CONFIG_PACKAGE_liblucihttp=y
+            CONFIG_PACKAGE_liblucihttp-ucode=y
+            CONFIG_PACKAGE_libncurses=m
+            CONFIG_PACKAGE_libsmartcols=m
+            CONFIG_PACKAGE_libss=m
+            CONFIG_PACKAGE_libuuid=m
+            CONFIG_PACKAGE_luci=y
+            CONFIG_PACKAGE_luci-app-firewall=y
+            CONFIG_PACKAGE_luci-app-package-manager=y
+            CONFIG_PACKAGE_luci-base=y
+            CONFIG_PACKAGE_luci-light=y
+            CONFIG_PACKAGE_luci-mod-admin-full=y
+            CONFIG_PACKAGE_luci-mod-network=y
+            CONFIG_PACKAGE_luci-mod-status=y
+            CONFIG_PACKAGE_luci-mod-system=y
+            CONFIG_PACKAGE_luci-proto-ipv6=y
+            CONFIG_PACKAGE_luci-proto-ppp=y
+            CONFIG_PACKAGE_luci-ssl=y
+            CONFIG_PACKAGE_luci-theme-bootstrap=y
+            CONFIG_PACKAGE_mkf2fs=m
+            CONFIG_PACKAGE_mt7981-wo-firmware=m
+            CONFIG_PACKAGE_mt7986-wo-firmware=m
+            CONFIG_PACKAGE_mt7988-2p5g-phy-firmware=m
+            CONFIG_PACKAGE_mt7988-wo-firmware=m
+            CONFIG_PACKAGE_partx-utils=m
+            CONFIG_PACKAGE_px5g-mbedtls=y
+            CONFIG_PACKAGE_rpcd=y
+            CONFIG_PACKAGE_rpcd-mod-file=y
+            CONFIG_PACKAGE_rpcd-mod-iwinfo=y
+            CONFIG_PACKAGE_rpcd-mod-luci=y
+            CONFIG_PACKAGE_rpcd-mod-rrdns=y
+            CONFIG_PACKAGE_rpcd-mod-ucode=y
+            CONFIG_PACKAGE_terminfo=m
+            CONFIG_PACKAGE_ucode-mod-html=y
+            CONFIG_PACKAGE_ucode-mod-math=y
+            CONFIG_PACKAGE_uhttpd=y
+            CONFIG_PACKAGE_uhttpd-mod-ubus=y
+            CONFIG_PACKAGE_zyxel-bootconfig=m
+            CONFIG_REPRODUCIBLE_DEBUG_INFO=y
+            CONFIG_SDK=y
+            CONFIG_SDK_LLVM_BPF=y
+            CONFIG_VERSIONOPT=y
+            CONFIG_VERSION_BUG_URL=""
+            CONFIG_VERSION_CODE=""
+            CONFIG_VERSION_DIST="OpenWrt"
+            CONFIG_VERSION_FILENAMES=y
+            CONFIG_VERSION_HOME_URL=""
+            CONFIG_VERSION_HWREV=""
+            CONFIG_VERSION_MANUFACTURER=""
+            CONFIG_VERSION_MANUFACTURER_URL=""
+            CONFIG_VERSION_NUMBER="${VERSION_NUMBER}"
+            CONFIG_VERSION_PRODUCT=""
+            CONFIG_VERSION_REPO="${VERSION_REPO}"
+            CONFIG_VERSION_SUPPORT_URL=""
+            EOF
           fi
-          
-          if [[ "$VERSION_REPO" == *"\$("* ]] || [ -z "$VERSION_REPO" ]; then
-            VERSION_REPO="https://downloads.openwrt.org/releases/SNAPSHOT"
-          fi
-          
-          echo "Using Version Repo: $VERSION_REPO"
-          echo "Using Version Number: $VERSION_NUMBER"
-          
-          # Create config file
-          cat > .config << EOF
-          CONFIG_TARGET_mediatek=y
-          CONFIG_TARGET_mediatek_filogic=y
-          CONFIG_TARGET_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t=y
-          CONFIG_ALL_KMODS=y
-          CONFIG_ALL_NONSHARED=y
-          CONFIG_DEVEL=y
-          CONFIG_AUTOREMOVE=y
-          CONFIG_BUILDBOT=y
-          CONFIG_COLLECT_KERNEL_DEBUG=y
-          CONFIG_IB=y
-          CONFIG_IMAGEOPT=y
-          CONFIG_JSON_CYCLONEDX_SBOM=y
-          CONFIG_KERNEL_BUILD_DOMAIN="buildhost"
-          CONFIG_KERNEL_BUILD_USER="builder"
-          # CONFIG_KERNEL_KALLSYMS is not set
-          CONFIG_MAKE_TOOLCHAIN=y
-          CONFIG_PACKAGE_cgi-io=y
-          CONFIG_PACKAGE_e2fsprogs=m
-          CONFIG_PACKAGE_f2fsck=m
-          CONFIG_PACKAGE_fdisk=m
-          CONFIG_PACKAGE_kmod-mt76=y
-          CONFIG_PACKAGE_kmod-mt7603=y
-          CONFIG_PACKAGE_kmod-mt76x02-common=y
-          CONFIG_PACKAGE_kmod-mt76x2=y
-          CONFIG_PACKAGE_kmod-mt76x2-common=y
-          CONFIG_PACKAGE_kmod-mt7915-firmware=y
-          CONFIG_PACKAGE_libblkid=m
-          CONFIG_PACKAGE_libcomerr=m
-          CONFIG_PACKAGE_libe2p=m
-          CONFIG_PACKAGE_libext2fs=m
-          CONFIG_PACKAGE_libf2fs=m
-          CONFIG_PACKAGE_libfdisk=m
-          CONFIG_PACKAGE_liblucihttp=y
-          CONFIG_PACKAGE_liblucihttp-ucode=y
-          CONFIG_PACKAGE_libncurses=m
-          CONFIG_PACKAGE_libsmartcols=m
-          CONFIG_PACKAGE_libss=m
-          CONFIG_PACKAGE_libuuid=m
-          CONFIG_PACKAGE_luci=y
-          CONFIG_PACKAGE_luci-app-firewall=y
-          CONFIG_PACKAGE_luci-app-package-manager=y
-          CONFIG_PACKAGE_luci-base=y
-          CONFIG_PACKAGE_luci-light=y
-          CONFIG_PACKAGE_luci-mod-admin-full=y
-          CONFIG_PACKAGE_luci-mod-network=y
-          CONFIG_PACKAGE_luci-mod-status=y
-          CONFIG_PACKAGE_luci-mod-system=y
-          CONFIG_PACKAGE_luci-proto-ipv6=y
-          CONFIG_PACKAGE_luci-proto-ppp=y
-          CONFIG_PACKAGE_luci-ssl=y
-          CONFIG_PACKAGE_luci-theme-bootstrap=y
-          CONFIG_PACKAGE_mkf2fs=m
-          CONFIG_PACKAGE_mt7981-wo-firmware=m
-          CONFIG_PACKAGE_mt7986-wo-firmware=m
-          CONFIG_PACKAGE_mt7988-2p5g-phy-firmware=m
-          CONFIG_PACKAGE_mt7988-wo-firmware=m
-          CONFIG_PACKAGE_partx-utils=m
-          CONFIG_PACKAGE_px5g-mbedtls=y
-          CONFIG_PACKAGE_rpcd=y
-          CONFIG_PACKAGE_rpcd-mod-file=y
-          CONFIG_PACKAGE_rpcd-mod-iwinfo=y
-          CONFIG_PACKAGE_rpcd-mod-luci=y
-          CONFIG_PACKAGE_rpcd-mod-rrdns=y
-          CONFIG_PACKAGE_rpcd-mod-ucode=y
-          CONFIG_PACKAGE_terminfo=m
-          CONFIG_PACKAGE_ucode-mod-html=y
-          CONFIG_PACKAGE_ucode-mod-math=y
-          CONFIG_PACKAGE_uhttpd=y
-          CONFIG_PACKAGE_uhttpd-mod-ubus=y
-          CONFIG_PACKAGE_zyxel-bootconfig=m
-          CONFIG_REPRODUCIBLE_DEBUG_INFO=y
-          CONFIG_SDK=y
-          CONFIG_SDK_LLVM_BPF=y
-          CONFIG_VERSIONOPT=y
-          CONFIG_VERSION_BUG_URL=""
-          CONFIG_VERSION_CODE=""
-          CONFIG_VERSION_DIST="OpenWrt"
-          CONFIG_VERSION_FILENAMES=y
-          CONFIG_VERSION_HOME_URL=""
-          CONFIG_VERSION_HWREV=""
-          CONFIG_VERSION_MANUFACTURER=""
-          CONFIG_VERSION_MANUFACTURER_URL=""
-          CONFIG_VERSION_NUMBER="${VERSION_NUMBER}"
-          CONFIG_VERSION_PRODUCT=""
-          CONFIG_VERSION_REPO="${VERSION_REPO}"
-          CONFIG_VERSION_SUPPORT_URL=""
-          EOF
           
           # Update config with dependencies
-          make defconfig
+          make defconfig > /dev/null 2>&1
       
       - name: Build OpenWrt
         id: build
@@ -336,10 +329,8 @@ jobs:
           
           # Check if build was successful
           if [ -d bin/targets/mediatek/filogic ]; then
-            echo "Build successful!"
             echo "build_status=success" >> $GITHUB_OUTPUT
           else
-            echo "Build failed!"
             echo "build_status=failed" >> $GITHUB_OUTPUT
             exit 1
           fi
@@ -349,34 +340,26 @@ jobs:
         run: |
           cd openwrt/bin/targets/mediatek/filogic
           
-          # Get version info with proper cleaning
           VERSION_NUMBER=$(grep "^VERSION_NUMBER:=" ../../../../../include/version.mk | cut -d'=' -f2 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr -d '"')
           if [[ "$VERSION_NUMBER" == *"\$("* ]] || [ -z "$VERSION_NUMBER" ]; then
             VERSION_NUMBER="SNAPSHOT"
           fi
           
-          # Get the build date and commit hash for naming
           BUILD_DATE=$(date +%Y%m%d)
           COMMIT_HASH=$(git --git-dir=../../../../../.git rev-parse --short HEAD)
           RELEASE_NAME="OpenWrt-${VERSION_NUMBER}-Xiaomi-AX3000T-${BUILD_DATE}-${COMMIT_HASH}"
           
-          # Create a directory for packaging
           mkdir -p ${RELEASE_NAME}
-          
-          # Copy firmware files
           cp *-xiaomi_mi-router-ax3000t-* ${RELEASE_NAME}/ 2>/dev/null || true
           cp *-xiaomi_mi-router-ax3000t-*.* ${RELEASE_NAME}/ 2>/dev/null || true
           
-          # Create checksum file
           cd ${RELEASE_NAME}
           sha256sum * > checksums.sha256
           
-          # Create archive
           cd ..
           tar -czf ${RELEASE_NAME}.tar.gz ${RELEASE_NAME}/
           
           echo "release_name=${RELEASE_NAME}" >> $GITHUB_ENV
-          echo "Release packaged as: ${RELEASE_NAME}.tar.gz"
       
       - name: Create Release
         if: steps.build.outputs.build_status == 'success'
@@ -392,43 +375,18 @@ jobs:
           body: |
             ## Auto-built OpenWrt for Xiaomi AX3000T
             
-            This release was automatically built from the OpenWrt repository.
+            **Build Date**: $(date '+%Y-%m-%d %H:%M:%S UTC')
+            **OpenWrt Version**: ${{ needs.check-and-build.outputs.openwrt_version }}
+            **Branch**: ${{ needs.check-and-build.outputs.branch_name || 'main' }}
             
-            - **Build Date**: $(date '+%Y-%m-%d %H:%M:%S UTC')
-            - **OpenWrt Version**: ${{ needs.check-and-build.outputs.openwrt_version }}
-            - **Branch**: ${{ needs.check-and-build.outputs.branch_name || 'main' }}
-            - **Version Repo**: ${{ needs.check-and-build.outputs.version_repo }}
-            
-            ### Changes Applied
-            - Custom partition size patch for Xiaomi AX3000T
+            ### Changes
             - Increased UBI partition to 0xce00000
             - Adjusted KF partition offset to 0xF600000
             
-            ### Included Packages
-            - Luci web interface with all modules
-            - MT76 wireless drivers
-            - Full kmods support
-            - SDK and ImageBuilder included
-            
-            ### Firmware Files
-            The firmware files are included in the archive.
-            
-            ### ⚠️ Important Notes
-            - **Flash at your own risk**
-            - **Verify checksums before flashing**
-            - **This is an automated build, not officially tested**
-            - **Make sure your device is compatible**
-            
-            ### Installation
-            1. Download the archive
-            2. Extract the firmware files
-            3. Verify checksums: `sha256sum -c checksums.sha256`
-            4. Flash using your preferred method (sysupgrade, TFTP, etc.)
+            ### ⚠️ Warning
+            Flash at your own risk. Verify checksums before flashing.
             
             Built with ❤️ by GitHub Actions
-            
-            ---
-            *This release was automatically generated by the [Daily OpenWrt Build](https://github.com/${{ github.repository }}) workflow.*
       
       - name: Upload Release Assets
         if: steps.build.outputs.build_status == 'success'
@@ -441,7 +399,7 @@ jobs:
           asset_name: ${{ env.release_name }}.tar.gz
           asset_content_type: application/gzip
       
-      - name: Upload firmware artifacts (for debugging)
+      - name: Upload firmware artifacts
         if: steps.build.outputs.build_status == 'success'
         uses: actions/upload-artifact@v4
         with:
