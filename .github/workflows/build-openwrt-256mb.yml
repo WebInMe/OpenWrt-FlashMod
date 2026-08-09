@@ -119,14 +119,11 @@ jobs:
         run: |
           cd openwrt
           
-          # Check if patch file exists in repository
           if [ -f ../custom.patch ]; then
             cp ../custom.patch .
             
-            # Try to apply the patch
             if ! git apply --ignore-whitespace custom.patch 2>/dev/null; then
               if ! git apply -3 custom.patch 2>/dev/null; then
-                # Manual modifications
                 if grep -q "reg = <0x2800000 0x4e00000>" target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts 2>/dev/null; then
                   sed -i 's/reg = <0x2800000 0x4e00000>;/reg = <0x2800000 0xce00000>;/g' \
                     target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts
@@ -141,7 +138,6 @@ jobs:
               fi
             fi
           else
-            # Use printf to create the patch file (avoids heredoc issues)
             printf '%s\n' \
               'diff --git a/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts b/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts' \
               '--- a/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts' \
@@ -165,10 +161,8 @@ jobs:
               ' 				read-only;' \
               ' 			};' > custom.patch
             
-            # Try to apply the patch
             if ! git apply --ignore-whitespace custom.patch 2>/dev/null; then
               if ! git apply -3 custom.patch 2>/dev/null; then
-                # Manual modifications
                 if [ -f target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts ]; then
                   sed -i 's/reg = <0x2800000 0x4e00000>;/reg = <0x2800000 0xce00000>;/g' \
                     target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts
@@ -205,7 +199,6 @@ jobs:
               VERSION_REPO="https://downloads.openwrt.org/releases/SNAPSHOT"
             fi
             
-            # Use printf to create the config file (avoids heredoc issues)
             printf '%s\n' \
               'CONFIG_TARGET_mediatek=y' \
               'CONFIG_TARGET_mediatek_filogic=y' \
@@ -297,20 +290,45 @@ jobs:
           
           make defconfig > /dev/null 2>&1
       
-      - name: Build OpenWrt
+      - name: Download sources
+        run: |
+          cd openwrt
+          make -j$(nproc) download 2>&1 | tee download.log
+      
+      - name: Build OpenWrt (with reduced output)
         id: build
         run: |
           cd openwrt
           
-          make -j$(nproc) download
-          make -j$(nproc) V=s
+          # Build with reduced verbosity and log to file
+          make -j$(nproc) 2>&1 | tee build.log
           
-          if [ -d bin/targets/mediatek/filogic ]; then
-            echo "build_status=success" >> $GITHUB_OUTPUT
-          else
+          # Check for build errors
+          if grep -q "Error [0-9]" build.log || grep -q "make.*Error" build.log; then
+            echo "Build failed with errors"
             echo "build_status=failed" >> $GITHUB_OUTPUT
             exit 1
           fi
+          
+          # Check if build was successful
+          if [ -d bin/targets/mediatek/filogic ]; then
+            echo "Build successful!"
+            echo "build_status=success" >> $GITHUB_OUTPUT
+          else
+            echo "Build failed - output directory not found"
+            echo "build_status=failed" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+      
+      - name: Upload build logs (if build fails)
+        if: failure() || steps.build.outputs.build_status == 'failed'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            openwrt/build.log
+            openwrt/download.log
+          retention-days: 7
       
       - name: Package artifacts
         if: steps.build.outputs.build_status == 'success'
