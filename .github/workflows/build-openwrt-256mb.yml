@@ -102,6 +102,19 @@ jobs:
           echo "Current branch: $(git branch --show-current)"
           echo "Commit: $(git rev-parse --short HEAD)"
       
+      - name: Remove telephony feed
+        run: |
+          cd openwrt
+          # Comment out or remove the telephony feed from feeds.conf
+          if [ -f feeds.conf.default ]; then
+            sed -i 's/^src-git telephony/#src-git telephony/' feeds.conf.default
+            echo "Disabled telephony feed"
+          fi
+          if [ -f feeds.conf ]; then
+            sed -i 's/^src-git telephony/#src-git telephony/' feeds.conf
+            echo "Disabled telephony feed in feeds.conf"
+          fi
+      
       - name: Apply custom patch
         run: |
           cd openwrt
@@ -169,6 +182,7 @@ jobs:
         run: |
           cd openwrt
           
+          # Update feeds (telephony is now disabled)
           ./scripts/feeds update -a
           ./scripts/feeds install -a
           
@@ -186,8 +200,7 @@ jobs:
               VERSION_REPO="https://downloads.openwrt.org/releases/SNAPSHOT"
             fi
             
-            # Remove telephony feed to avoid rtpengine build issues
-            # We'll build only essential packages for the router
+            # Build only essential packages
             printf '%s\n' \
               'CONFIG_TARGET_mediatek=y' \
               'CONFIG_TARGET_mediatek_filogic=y' \
@@ -231,7 +244,7 @@ jobs:
               'CONFIG_PACKAGE_ucode-mod-math=y' \
               'CONFIG_PACKAGE_uhttpd=y' \
               'CONFIG_PACKAGE_uhttpd-mod-ubus=y' \
-              '# Filesystem and disk utilities' \
+              '# Filesystem utilities' \
               'CONFIG_PACKAGE_e2fsprogs=m' \
               'CONFIG_PACKAGE_f2fsck=m' \
               'CONFIG_PACKAGE_fdisk=m' \
@@ -248,7 +261,7 @@ jobs:
               'CONFIG_PACKAGE_mkf2fs=m' \
               'CONFIG_PACKAGE_partx-utils=m' \
               'CONFIG_PACKAGE_terminfo=m' \
-              '# Firmware packages' \
+              '# Wireless firmware' \
               'CONFIG_PACKAGE_mt7981-wo-firmware=m' \
               'CONFIG_PACKAGE_mt7986-wo-firmware=m' \
               'CONFIG_PACKAGE_mt7988-2p5g-phy-firmware=m' \
