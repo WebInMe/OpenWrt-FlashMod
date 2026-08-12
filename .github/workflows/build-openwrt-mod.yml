@@ -65,7 +65,8 @@ jobs:
         id: get_latest_stable
         uses: joutvhu/get-release@v1
         with:
-          repo: openwrt/openwrt
+          repo: openwrt
+          owner: openwrt
           pattern: '^v.*'
           latest: true
           # This will exclude pre-releases like release candidates
