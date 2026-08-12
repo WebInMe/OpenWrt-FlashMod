@@ -61,20 +61,17 @@ jobs:
       version_repo: ${{ steps.get_version.outputs.version_repo }}
     
     steps:  
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        
-      - name: Get the latest OpenWrt stable version
-        id: get_latest_stable
-        uses: joutvhu/get-release@v1
-        with:
-          repo: openwrt
-          owner: openwrt
-          latest: true
-          # This will exclude pre-releases like release candidates
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # - name: Checkout repository
+      #   uses: actions/checkout@v4
+
+      - name: Get latest stable version with git
+        id: get_version
+        run: |
+          git clone --tags https://github.com/openwrt/openwrt.git /tmp/openwrt
+          cd /tmp/openwrt
+          LATEST_TAG=$(git tag --list 'v*' --sort='-version:refname' | grep -v '\-rc' | head -n1)
+          echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "version=${LATEST_TAG#v}" >> $GITHUB_OUTPUT
           
       - name: Use the version
         run: |
@@ -83,21 +80,7 @@ jobs:
           if [ -n "$REPO_BRANCH_IN" ] && [ "$REPO_BRANCH_IN" != "auto" ]; then
             REPO_REF="$REPO_BRANCH_IN"
           else
-            REPO_REF="${{ steps.get_latest_stable.outputs.tag_name }}"
+            REPO_REF="${{ steps.get_version.outputs.tag }}"
           fi
 
           echo "Using source: $REPO_REF"
-
-      - name: Get latest stable version with git
-        id: get_version_v4
-        run: |
-          git clone --tags https://github.com/openwrt/openwrt.git /tmp/openwrt
-          cd /tmp/openwrt
-          # Сортируем теги по версии, а не по дате
-          LATEST_TAG=$(git tag --list 'v*' --sort='-version:refname' | grep -v '\-rc' | head -n1)
-          echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
-          echo "version=${LATEST_TAG#v}" >> $GITHUB_OUTPUT
-      
-      - name: Show result
-        run: |
-          echo "Latest stable version (by version number): ${{ steps.get_version_v4.outputs.tag }}"
