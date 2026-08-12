@@ -75,8 +75,6 @@ jobs:
           
       - name: Use the version
         run: |
-          echo "The latest stable version is ${{ steps.get_latest_stable.outputs.tag_name }}"
-
           if [ -n "$REPO_BRANCH_IN" ] && [ "$REPO_BRANCH_IN" != "auto" ]; then
             REPO_REF="$REPO_BRANCH_IN"
           else
@@ -84,3 +82,4 @@ jobs:
           fi
 
           echo "Using source: $REPO_REF"
+          echo "$REPO_REF" > latest.txt
