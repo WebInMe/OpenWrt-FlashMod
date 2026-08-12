@@ -85,5 +85,19 @@ jobs:
           fi
 
           echo "Using source: $REPO_REF"
+
+      - name: Get latest OpenWrt stable version
+        id: get_version
+        run: |
+          LATEST_TAG=$(gh release list --repo openwrt/openwrt --limit 1 --exclude-pre-releases --json tagName -q '.[0].tagName')
+          echo "tag_name=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "version=${LATEST_TAG#v}" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+      - name: Use the version
+        run: |
+          echo "Latest OpenWrt: ${{ steps.get_version.outputs.tag_name }}"
+          echo "Version number: ${{ steps.get_version.outputs.version }}"
         
       
