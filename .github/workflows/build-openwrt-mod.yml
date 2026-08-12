@@ -89,7 +89,7 @@ jobs:
       - name: Get latest stable version with git
         id: get_version_v4
         run: |
-          git clone --depth 1 https://github.com/openwrt/openwrt.git /tmp/openwrt
+          git clone --tags https://github.com/openwrt/openwrt.git /tmp/openwrt
           cd /tmp/openwrt
           # Сортируем теги по версии, а не по дате
           LATEST_TAG=$(git tag --list 'v*' --sort='-version:refname' | grep -v '\-rc' | head -n1)
