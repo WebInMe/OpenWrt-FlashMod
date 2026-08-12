@@ -109,7 +109,7 @@ jobs:
     
       - name: Use the version
         run: |
-          echo "Latest stable version: ${{ steps.get_version.outputs.tag }}"
+          echo "Latest stable version: ${{ steps.get_version_v2.outputs.tag }}"
 
       - name: Get latest stable version with git
         id: get_version_v3
@@ -124,5 +124,5 @@ jobs:
     
       - name: Show version
         run: |
-          echo "Latest stable version: ${{ steps.get_version.outputs.tag }}"
-          echo "Version number: ${{ steps.get_version.outputs.version }}"
+          echo "Latest stable version: ${{ steps.get_version_v3.outputs.tag }}"
+          echo "Version number: ${{ steps.get_version_v3.outputs.version }}"
