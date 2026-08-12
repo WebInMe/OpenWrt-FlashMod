@@ -89,7 +89,7 @@ jobs:
       - name: Get latest OpenWrt stable version
         id: get_version
         run: |
-          LATEST_TAG=$(gh release list --repo openwrt/openwrt --limit 1 --exclude-pre-releases --json tagName -q '.[0].tagName')
+          LATEST_TAG=$(gh release list --repo openwrt/openwrt --limit 1 --exclude-pre-releases --json tagName -q 'sort_by(.tagName) | reverse | .[0].tagName')
           echo "tag_name=$LATEST_TAG" >> $GITHUB_OUTPUT
           echo "version=${LATEST_TAG#v}" >> $GITHUB_OUTPUT
         env:
