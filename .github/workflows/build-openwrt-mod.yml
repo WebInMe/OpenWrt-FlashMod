@@ -75,11 +75,33 @@ jobs:
           
       - name: Use the version
         run: |
-          if [ -n "$REPO_BRANCH_IN" ] && [ "$REPO_BRANCH_IN" != "auto" ]; then
+          if [ -n "$REPO_BRANCH_INPUT" ] && [ "$REPO_BRANCH_INPUT" != "auto" ]; then
             REPO_REF="$REPO_BRANCH_IN"
           else
             REPO_REF="${{ steps.get_version.outputs.tag }}"
           fi
 
           echo "Using source: $REPO_REF"
-          echo "$REPO_REF" > latest.txt
+
+      - name: Get latest stable version
+        id: get_version_v4
+        uses: actions-ecosystem/action-get-latest-tag@v1
+        with:
+          semver_only: true
+      
+      - name: Show result
+        run: |
+          echo "Latest stable version: ${{ steps.get_version_v4.outputs.tag }}"
+
+      - name: Clone with tags
+        run: |
+          git clone --branch ${{ steps.get_version.outputs.tag }} \
+            https://github.com/openwrt/openwrt.git /tmp/openwrt
+
+      - name: Apply patches
+        run: |
+          cd /tmp/openwrt
+          if [ "$CONFIG_MODEL" != "AX6000" ]; then
+            sed -i 's/reg = <0x600000 0x6e00000>/reg = <0x600000 0x1ea00000>/' target/linux/mediatek/files-5.4/arch/arm64/boot/dts/mediatek/mt7986a-xiaomi-redmi-router-ax6000.dts
+            cat target/linux/mediatek/files-5.4/arch/arm64/boot/dts/mediatek/mt7986a-xiaomi-redmi-router-ax6000.dts
+          fi
