@@ -61,13 +61,15 @@ jobs:
       version_repo: ${{ steps.get_version.outputs.version_repo }}
     
     steps:  
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
       - name: Get the latest OpenWrt stable version
         id: get_latest_stable
         uses: joutvhu/get-release@v1
         with:
           repo: openwrt
           owner: openwrt
-          pattern: '^v.*'
           latest: true
           # This will exclude pre-releases like release candidates
           prerelease: false
