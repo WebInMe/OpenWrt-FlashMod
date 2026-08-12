@@ -1,15 +1,33 @@
-name: Daily OpenWrt Build for Xiaomi AX3000T
+name: OpenWrtMod
 
 on:
-  schedule:
+  # schedule:
     # Run daily at 02:00 UTC
-    - cron: '0 2 * * *'
+    # - cron: '0 2 * * *'
+  repository_dispatch:
   workflow_dispatch:
-    # Allow manual trigger
+    inputs:
+      MODEL:
+        description: 'Router model'
+        required: true
+        default: 'AX6000'
+        type: choice
+        options:
+          - AX6000
+          - AX3000
+      FLASH_SIZE:
+        description: 'Flash size'
+        required: true
+        default: '512MB'
+        type: choice
+        options:
+          - 512MB
+          - 256MB
+          - 128MB
 
 jobs:
   check-and-build:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     
     outputs:
       new_branch: ${{ steps.check_branch.outputs.new_branch }}
