@@ -24,11 +24,36 @@ on:
           - 512MB
           - 256MB
           - 128MB
+      REPO_URL:
+        description: 'Source repository'
+        required: true
+        default: 'https://github.com/openwrt/openwrt'
+        type: string
+      REPO_BRANCH:
+        description: 'Repository branch'
+        required: true
+        default: 'auto'
+        type: string
+
+env:
+  REPO_URL: ${{ github.event.inputs.REPO_URL }}
+  REPO_BRANCH_INPUT: ${{ github.event.inputs.REPO_BRANCH }}
+  TZ: UTC
+  # Build configuration from inputs
+  CONFIG_MODEL: ${{ github.event.inputs.MODEL || 'AX6000'  }}
+  CONFIG_FLASH_SIZE: ${{ github.event.inputs.FLASH_SIZE || '512MB' }}
 
 jobs:
   check-and-build:
-    runs-on: ubuntu-latest
-    
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+        - ubuntu-latest
+
+    permissions:
+      contents: write
+      
     outputs:
       new_branch: ${{ steps.check_branch.outputs.new_branch }}
       branch_name: ${{ steps.check_branch.outputs.branch_name }}
@@ -36,386 +61,25 @@ jobs:
       version_repo: ${{ steps.get_version.outputs.version_repo }}
     
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        
-      - name: Check for new branches in OpenWrt
-        id: check_branch
-        run: |
-          git ls-remote --heads https://github.com/openwrt/openwrt.git > current_branches.txt
-          
-          if [ -f previous_branches.txt ]; then
-            NEW_BRANCHES=$(comm -13 <(sort previous_branches.txt) <(sort current_branches.txt) | grep -v "refs/heads/")
-            
-            if [ -n "$NEW_BRANCHES" ]; then
-              BRANCH_NAME=$(echo "$NEW_BRANCHES" | head -1 | sed 's/refs\/heads\///')
-              echo "new_branch=true" >> $GITHUB_OUTPUT
-              echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
-              echo "Found new branch: $BRANCH_NAME"
-            else
-              echo "new_branch=false" >> $GITHUB_OUTPUT
-              echo "No new branches found"
-            fi
-          else
-            cp current_branches.txt previous_branches.txt
-            echo "new_branch=false" >> $GITHUB_OUTPUT
-            echo "First run - saved branch list"
-          fi
-          
-          cp current_branches.txt previous_branches.txt
-      
-      - name: Get OpenWrt version
-        id: get_version
-        run: |
-          git clone --depth 1 https://github.com/openwrt/openwrt.git temp_openwrt
-          cd temp_openwrt
-          
-          if [ -f include/version.mk ]; then
-            VERSION_NUMBER=$(grep "^VERSION_NUMBER:=" include/version.mk | cut -d'=' -f2 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr -d '"')
-            VERSION_REPO=$(grep "^VERSION_REPO:=" include/version.mk | cut -d'=' -f2- | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr -d '"')
-            
-            if [ -z "$VERSION_NUMBER" ] || [[ "$VERSION_NUMBER" == *"\$("* ]]; then
-              VERSION_NUMBER="SNAPSHOT"
-            fi
-            
-            if [ -z "$VERSION_REPO" ] || [[ "$VERSION_REPO" == *"\$("* ]]; then
-              VERSION_REPO="https://downloads.openwrt.org/releases/SNAPSHOT"
-            fi
-            
-            echo "openwrt_version=$VERSION_NUMBER" >> $GITHUB_OUTPUT
-            echo "version_repo=$VERSION_REPO" >> $GITHUB_OUTPUT
-          else
-            echo "openwrt_version=SNAPSHOT" >> $GITHUB_OUTPUT
-            echo "version_repo=https://downloads.openwrt.org/releases/SNAPSHOT" >> $GITHUB_OUTPUT
-          fi
-          
-          cd ..
-          rm -rf temp_openwrt
-
-  build:
-    needs: check-and-build
-    if: needs.check-and-build.outputs.new_branch == 'true' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-24.04
-    
-    steps:
-      - name: Setup build environment
-        run: |
-          sudo apt update
-          sudo apt install -y build-essential git subversion libncurses5-dev \
-            zlib1g-dev gawk flex wget unzip python3 python3-pip python3-venv \
-            libssl-dev file rsync curl time gcc-multilib \
-            libelf-dev dwarves libzstd-dev qemu-utils \
-            python3-setuptools python3-pytest \
-            python3-pyparsing python3-yaml python3-packaging
-        
-      - name: Clone OpenWrt
-        id: clone
-        run: |
-          if [ "${{ needs.check-and-build.outputs.branch_name }}" != "" ] && [ "${{ needs.check-and-build.outputs.branch_name }}" != "null" ]; then
-            git clone -b ${{ needs.check-and-build.outputs.branch_name }} --depth 1 https://github.com/openwrt/openwrt.git openwrt
-          else
-            git clone --depth 1 https://github.com/openwrt/openwrt.git openwrt
-          fi
-          cd openwrt
-          echo "Current branch: $(git branch --show-current)"
-          echo "Commit: $(git rev-parse --short HEAD)"
-      
-      - name: Remove telephony feed
-        run: |
-          cd openwrt
-          # Comment out or remove the telephony feed from feeds.conf
-          if [ -f feeds.conf.default ]; then
-            sed -i 's/^src-git telephony/#src-git telephony/' feeds.conf.default
-            echo "Disabled telephony feed"
-          fi
-          if [ -f feeds.conf ]; then
-            sed -i 's/^src-git telephony/#src-git telephony/' feeds.conf
-            echo "Disabled telephony feed in feeds.conf"
-          fi
-      
-      - name: Apply custom patch
-        run: |
-          cd openwrt
-          
-          if [ -f ../custom.patch ]; then
-            cp ../custom.patch .
-            
-            if ! git apply --ignore-whitespace custom.patch 2>/dev/null; then
-              if ! git apply -3 custom.patch 2>/dev/null; then
-                if grep -q "reg = <0x2800000 0x4e00000>" target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts 2>/dev/null; then
-                  sed -i 's/reg = <0x2800000 0x4e00000>;/reg = <0x2800000 0xce00000>;/g' \
-                    target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts
-                fi
-                
-                if grep -q "partition@7600000" target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi 2>/dev/null; then
-                  sed -i 's/partition@7600000 {/partition@F600000 {/g' \
-                    target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi
-                  sed -i 's/reg = <0x7600000 0x40000>;/reg = <0xF600000 0x40000>;/g' \
-                    target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi
-                fi
-              fi
-            fi
-          else
-            printf '%s\n' \
-              'diff --git a/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts b/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts' \
-              '--- a/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts' \
-              '+++ b/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts' \
-              '@@ -27,9 +27,9 @@' \
-              ' 	partition@2800000 {' \
-              ' 		label = "ubi";' \
-              '-		reg = <0x2800000 0x4e00000>;' \
-              '+		reg = <0x2800000 0xce00000>;' \
-              ' 	};' \
-              ' };' \
-              'diff --git a/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi b/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi' \
-              '--- a/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi' \
-              '+++ b/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi' \
-              '@@ -383,12 +383,12 @@' \
-              '-			partition@7600000 {' \
-              '+			partition@F600000 {' \
-              ' 				label = "KF";' \
-              '-				reg = <0x7600000 0x40000>;' \
-              '+				reg = <0xF600000 0x40000>;' \
-              ' 				read-only;' \
-              ' 			};' > custom.patch
-            
-            if ! git apply --ignore-whitespace custom.patch 2>/dev/null; then
-              if ! git apply -3 custom.patch 2>/dev/null; then
-                if [ -f target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts ]; then
-                  sed -i 's/reg = <0x2800000 0x4e00000>;/reg = <0x2800000 0xce00000>;/g' \
-                    target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts
-                fi
-                
-                if [ -f target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi ]; then
-                  sed -i 's/partition@7600000 {/partition@F600000 {/g' \
-                    target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi
-                  sed -i 's/reg = <0x7600000 0x40000>;/reg = <0xF600000 0x40000>;/g' \
-                    target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-common.dtsi
-                fi
-              fi
-            fi
-          fi
-      
-      - name: Configure build
-        run: |
-          cd openwrt
-          
-          # Update feeds (telephony is now disabled)
-          ./scripts/feeds update -a
-          ./scripts/feeds install -a
-          
-          if [ -f ../.config ]; then
-            cp ../.config .
-          else
-            VERSION_REPO=$(grep "^VERSION_REPO:=" include/version.mk | cut -d'=' -f2- | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr -d '"')
-            VERSION_NUMBER=$(grep "^VERSION_NUMBER:=" include/version.mk | cut -d'=' -f2 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr -d '"')
-            
-            if [[ "$VERSION_NUMBER" == *"\$("* ]] || [ -z "$VERSION_NUMBER" ]; then
-              VERSION_NUMBER="SNAPSHOT"
-            fi
-            
-            if [[ "$VERSION_REPO" == *"\$("* ]] || [ -z "$VERSION_REPO" ]; then
-              VERSION_REPO="https://downloads.openwrt.org/releases/SNAPSHOT"
-            fi
-            
-            # Build only essential packages
-            printf '%s\n' \
-              'CONFIG_TARGET_mediatek=y' \
-              'CONFIG_TARGET_mediatek_filogic=y' \
-              'CONFIG_TARGET_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t=y' \
-              'CONFIG_DEVEL=y' \
-              'CONFIG_AUTOREMOVE=y' \
-              'CONFIG_BUILDBOT=y' \
-              'CONFIG_COLLECT_KERNEL_DEBUG=y' \
-              'CONFIG_IB=y' \
-              'CONFIG_IMAGEOPT=y' \
-              'CONFIG_JSON_CYCLONEDX_SBOM=y' \
-              'CONFIG_KERNEL_BUILD_DOMAIN="buildhost"' \
-              'CONFIG_KERNEL_BUILD_USER="builder"' \
-              '# CONFIG_KERNEL_KALLSYMS is not set' \
-              'CONFIG_MAKE_TOOLCHAIN=y' \
-              '# Base system packages' \
-              'CONFIG_PACKAGE_cgi-io=y' \
-              'CONFIG_PACKAGE_liblucihttp=y' \
-              'CONFIG_PACKAGE_liblucihttp-ucode=y' \
-              'CONFIG_PACKAGE_luci=y' \
-              'CONFIG_PACKAGE_luci-app-firewall=y' \
-              'CONFIG_PACKAGE_luci-app-package-manager=y' \
-              'CONFIG_PACKAGE_luci-base=y' \
-              'CONFIG_PACKAGE_luci-light=y' \
-              'CONFIG_PACKAGE_luci-mod-admin-full=y' \
-              'CONFIG_PACKAGE_luci-mod-network=y' \
-              'CONFIG_PACKAGE_luci-mod-status=y' \
-              'CONFIG_PACKAGE_luci-mod-system=y' \
-              'CONFIG_PACKAGE_luci-proto-ipv6=y' \
-              'CONFIG_PACKAGE_luci-proto-ppp=y' \
-              'CONFIG_PACKAGE_luci-ssl=y' \
-              'CONFIG_PACKAGE_luci-theme-bootstrap=y' \
-              'CONFIG_PACKAGE_px5g-mbedtls=y' \
-              'CONFIG_PACKAGE_rpcd=y' \
-              'CONFIG_PACKAGE_rpcd-mod-file=y' \
-              'CONFIG_PACKAGE_rpcd-mod-iwinfo=y' \
-              'CONFIG_PACKAGE_rpcd-mod-luci=y' \
-              'CONFIG_PACKAGE_rpcd-mod-rrdns=y' \
-              'CONFIG_PACKAGE_rpcd-mod-ucode=y' \
-              'CONFIG_PACKAGE_ucode-mod-html=y' \
-              'CONFIG_PACKAGE_ucode-mod-math=y' \
-              'CONFIG_PACKAGE_uhttpd=y' \
-              'CONFIG_PACKAGE_uhttpd-mod-ubus=y' \
-              '# Filesystem utilities' \
-              'CONFIG_PACKAGE_e2fsprogs=m' \
-              'CONFIG_PACKAGE_f2fsck=m' \
-              'CONFIG_PACKAGE_fdisk=m' \
-              'CONFIG_PACKAGE_libblkid=m' \
-              'CONFIG_PACKAGE_libcomerr=m' \
-              'CONFIG_PACKAGE_libe2p=m' \
-              'CONFIG_PACKAGE_libext2fs=m' \
-              'CONFIG_PACKAGE_libf2fs=m' \
-              'CONFIG_PACKAGE_libfdisk=m' \
-              'CONFIG_PACKAGE_libncurses=m' \
-              'CONFIG_PACKAGE_libsmartcols=m' \
-              'CONFIG_PACKAGE_libss=m' \
-              'CONFIG_PACKAGE_libuuid=m' \
-              'CONFIG_PACKAGE_mkf2fs=m' \
-              'CONFIG_PACKAGE_partx-utils=m' \
-              'CONFIG_PACKAGE_terminfo=m' \
-              '# Wireless firmware' \
-              'CONFIG_PACKAGE_mt7981-wo-firmware=m' \
-              'CONFIG_PACKAGE_mt7986-wo-firmware=m' \
-              'CONFIG_PACKAGE_mt7988-2p5g-phy-firmware=m' \
-              'CONFIG_PACKAGE_mt7988-wo-firmware=m' \
-              'CONFIG_PACKAGE_zyxel-bootconfig=m' \
-              '# Build options' \
-              'CONFIG_REPRODUCIBLE_DEBUG_INFO=y' \
-              'CONFIG_SDK=y' \
-              'CONFIG_SDK_LLVM_BPF=y' \
-              'CONFIG_VERSIONOPT=y' \
-              'CONFIG_VERSION_BUG_URL=""' \
-              'CONFIG_VERSION_CODE=""' \
-              'CONFIG_VERSION_DIST="OpenWrt"' \
-              'CONFIG_VERSION_FILENAMES=y' \
-              'CONFIG_VERSION_HOME_URL=""' \
-              'CONFIG_VERSION_HWREV=""' \
-              'CONFIG_VERSION_MANUFACTURER=""' \
-              'CONFIG_VERSION_MANUFACTURER_URL=""' \
-              'CONFIG_VERSION_NUMBER="'${VERSION_NUMBER}'"' \
-              'CONFIG_VERSION_PRODUCT=""' \
-              'CONFIG_VERSION_REPO="'${VERSION_REPO}'"' \
-              'CONFIG_VERSION_SUPPORT_URL=""' > .config
-          fi
-          
-          make defconfig > /dev/null 2>&1
-      
-      - name: Download sources
-        run: |
-          cd openwrt
-          make -j$(nproc) download 2>&1 | tee download.log
-      
-      - name: Build OpenWrt
-        id: build
-        run: |
-          cd openwrt
-          
-          make -j$(nproc) 2>&1 | tee build.log
-          
-          if grep -q "Error [0-9]" build.log || grep -q "make.*Error" build.log; then
-            echo "Build failed with errors"
-            echo "build_status=failed" >> $GITHUB_OUTPUT
-            exit 1
-          fi
-          
-          if [ -d bin/targets/mediatek/filogic ]; then
-            echo "Build successful!"
-            echo "build_status=success" >> $GITHUB_OUTPUT
-          else
-            echo "Build failed - output directory not found"
-            echo "build_status=failed" >> $GITHUB_OUTPUT
-            exit 1
-          fi
-      
-      - name: Upload build logs (if build fails)
-        if: failure() || steps.build.outputs.build_status == 'failed'
-        uses: actions/upload-artifact@v4
+      - name: Get the latest OpenWrt stable version
+        id: get_latest_stable
+        uses: joutvhu/get-release@v1
         with:
-          name: build-logs
-          path: |
-            openwrt/build.log
-            openwrt/download.log
-          retention-days: 7
-      
-      - name: Package artifacts
-        if: steps.build.outputs.build_status == 'success'
-        run: |
-          cd openwrt/bin/targets/mediatek/filogic
-          
-          VERSION_NUMBER=$(grep "^VERSION_NUMBER:=" ../../../../../include/version.mk | cut -d'=' -f2 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr -d '"')
-          if [[ "$VERSION_NUMBER" == *"\$("* ]] || [ -z "$VERSION_NUMBER" ]; then
-            VERSION_NUMBER="SNAPSHOT"
-          fi
-          
-          BUILD_DATE=$(date +%Y%m%d)
-          COMMIT_HASH=$(git --git-dir=../../../../../.git rev-parse --short HEAD)
-          RELEASE_NAME="OpenWrt-${VERSION_NUMBER}-Xiaomi-AX3000T-${BUILD_DATE}-${COMMIT_HASH}"
-          
-          mkdir -p ${RELEASE_NAME}
-          cp *-xiaomi_mi-router-ax3000t-* ${RELEASE_NAME}/ 2>/dev/null || true
-          cp *-xiaomi_mi-router-ax3000t-*.* ${RELEASE_NAME}/ 2>/dev/null || true
-          
-          cd ${RELEASE_NAME}
-          sha256sum * > checksums.sha256
-          
-          cd ..
-          tar -czf ${RELEASE_NAME}.tar.gz ${RELEASE_NAME}/
-          
-          echo "release_name=${RELEASE_NAME}" >> $GITHUB_ENV
-      
-      - name: Create Release
-        if: steps.build.outputs.build_status == 'success'
-        uses: actions/create-release@v1
-        id: create_release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: build-${{ env.release_name }}
-          release_name: ${{ env.release_name }}
-          draft: false
+          repo: openwrt/openwrt
+          latest: true
+          # This will exclude pre-releases like release candidates
           prerelease: false
-          body: |
-            ## Auto-built OpenWrt for Xiaomi AX3000T
-            
-            **Build Date**: $(date '+%Y-%m-%d %H:%M:%S UTC')
-            **OpenWrt Version**: ${{ needs.check-and-build.outputs.openwrt_version }}
-            **Branch**: ${{ needs.check-and-build.outputs.branch_name || 'main' }}
-            
-            ### Changes
-            - Increased UBI partition to 0xce00000
-            - Adjusted KF partition offset to 0xF600000
-            
-            ### Included Packages
-            - Luci web interface with SSL
-            - Wireless firmware for MT7981/MT7986/MT7988
-            - Basic system utilities
-            
-            ### ⚠️ Warning
-            Flash at your own risk. Verify checksums before flashing.
-            
-            Built with ❤️ by GitHub Actions
+          
+      - name: Use the version
+        run: |
+          echo "The latest stable version is ${{ steps.get_latest_stable.outputs.tag_name }}"
+
+          if [ -n "$REPO_BRANCH_IN" ] && [ "$REPO_BRANCH_IN" != "auto" ]; then
+            REPO_REF="$REPO_BRANCH_IN"
+          else
+            REPO_REF="${{ steps.get_latest_stable.outputs.tag_name }}"
+          fi
+
+          echo "Using source: $REPO_REF"
+        
       
-      - name: Upload Release Assets
-        if: steps.build.outputs.build_status == 'success'
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: openwrt/bin/targets/mediatek/filogic/${{ env.release_name }}.tar.gz
-          asset_name: ${{ env.release_name }}.tar.gz
-          asset_content_type: application/gzip
-      
-      - name: Upload firmware artifacts
-        if: steps.build.outputs.build_status == 'success'
-        uses: actions/upload-artifact@v4
-        with:
-          name: openwrt-firmware
-          path: openwrt/bin/targets/mediatek/filogic/${{ env.release_name }}.tar.gz
-          retention-days: 30
