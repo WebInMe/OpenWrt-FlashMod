@@ -67,7 +67,6 @@ jobs:
       - name: Get latest stable version with git
         id: get_version
         run: |
-          # git clone --tags https://github.com/openwrt/openwrt.git /tmp/openwrt
           git clone --branch main --single-branch --tags https://github.com/openwrt/openwrt.git /tmp/openwrt
           cd /tmp/openwrt
           LATEST_TAG=$(git tag --list 'v*' --sort='-version:refname' | grep -v '\-rc' | head -n1)
@@ -83,7 +82,7 @@ jobs:
           fi
 
           echo "Using source: $REPO_REF"
-          git checkout $REPO_REF
+          git checkout "$REPO_REF"
 
       - name: Apply patches
         run: |
