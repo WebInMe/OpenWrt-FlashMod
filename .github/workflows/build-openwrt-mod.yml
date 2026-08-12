@@ -69,6 +69,7 @@ jobs:
           latest: true
           # This will exclude pre-releases like release candidates
           prerelease: false
+          token: ${{ secrets.GITHUB_TOKEN }} 
           
       - name: Use the version
         run: |
