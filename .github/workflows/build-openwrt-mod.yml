@@ -110,4 +110,19 @@ jobs:
       - name: Use the version
         run: |
           echo "Latest stable version: ${{ steps.get_version.outputs.tag }}"
-      
+
+      - name: Get latest stable version with git
+        id: get_version_v3
+        run: |
+          # Клонируем репозиторий (нужен для доступа к тегам)
+          git clone --depth 1 https://github.com/openwrt/openwrt.git /tmp/openwrt
+          cd /tmp/openwrt
+          # Получаем последний тег, исключая пре-релизы и сортируя по версии
+          LATEST_TAG=$(git tag --list 'v*' --sort='-version:refname' | grep -v '\-rc' | head -n1)
+          echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "version=${LATEST_TAG#v}" >> $GITHUB_OUTPUT
+    
+      - name: Show version
+        run: |
+          echo "Latest stable version: ${{ steps.get_version.outputs.tag }}"
+          echo "Version number: ${{ steps.get_version.outputs.version }}"
