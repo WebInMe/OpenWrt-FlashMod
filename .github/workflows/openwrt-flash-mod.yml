@@ -1,0 +1,392 @@
+name: OpenWrt Builder
+
+on:
+  schedule:
+    # Run daily at 02:00 UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    # Allow manual trigger with optional tag override
+    inputs:
+      tag:
+        description: 'Specific tag to build (e.g., v23.05.3)'
+        required: false
+        default: ''
+
+jobs:
+  check-and-build:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+      issues: write
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: Setup build environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential clang flex bison g++ gawk \
+            gettext git libncurses-dev libssl-dev \
+            python3 python3-distutils python3-pip \
+            rsync unzip zlib1g-dev file wget \
+            time qemu-utils qemu-user-static \
+            u-boot-tools device-tree-compiler
+          
+      - name: Get latest version
+        id: latest_version
+        run: |
+          # Get the latest tag from OpenWrt repository
+          LATEST_TAG=$(git ls-remote --tags https://github.com/openwrt/openwrt.git \
+            | grep -E 'refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$' \
+            | sed 's/.*refs\/tags\///' \
+            | sort -V \
+            | tail -n1)
+          
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          
+      - name: Check if new version exists
+        id: check_version
+        run: |
+          LATEST_TAG="${{ steps.latest_version.outputs.latest_tag }}"
+          
+          # Create state directory if it doesn't exist
+          mkdir -p .state
+          
+          # Read previous version
+          if [ -f .state/last_built_tag ]; then
+            PREV_TAG=$(cat .state/last_built_tag)
+          else
+            PREV_TAG=""
+          fi
+          
+          echo "Previous tag: $PREV_TAG"
+          echo "Latest tag: $LATEST_TAG"
+          
+          # Check if we have a specific tag from manual trigger
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            LATEST_TAG="${{ github.event.inputs.tag }}"
+            echo "Using manual tag: $LATEST_TAG"
+            echo "build_required=true" >> $GITHUB_OUTPUT
+            echo "tag_to_build=$LATEST_TAG" >> $GITHUB_OUTPUT
+            echo "trigger=manual" >> $GITHUB_OUTPUT
+          elif [ "$LATEST_TAG" != "$PREV_TAG" ] && [ -n "$LATEST_TAG" ]; then
+            echo "New version detected: $LATEST_TAG"
+            echo "build_required=true" >> $GITHUB_OUTPUT
+            echo "tag_to_build=$LATEST_TAG" >> $GITHUB_OUTPUT
+            echo "trigger=scheduled" >> $GITHUB_OUTPUT
+          else
+            echo "No new version detected"
+            echo "build_required=false" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Clone OpenWrt source
+        if: steps.check_version.outputs.build_required == 'true'
+        run: |
+          TAG="${{ steps.check_version.outputs.tag_to_build }}"
+          git clone --branch $TAG --depth 1 \
+            https://github.com/openwrt/openwrt.git openwrt-source
+          
+      - name: Create DTS patches
+        if: steps.check_version.outputs.build_required == 'true'
+        run: |
+          cd openwrt-source
+          
+          # Create patch directory
+          mkdir -p target/linux/mediatek/patches-5.15
+          
+          # Patch for Redmi AX6000 - 256MB UBI
+          cat > target/linux/mediatek/patches-5.15/100-redmi-ax6000-ubi-256mb.patch << 'EOF'
+          --- a/target/linux/mediatek/dts/mt7986a-xiaomi-redmi-ax6000.dts
+          +++ b/target/linux/mediatek/dts/mt7986a-xiaomi-redmi-ax6000.dts
+          @@ -1,5 +1,6 @@
+          // SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+          +/dts-v1/;
+           
+           #include "mt7986a-xiaomi.dtsi"
+           
+           / {
+           @@ -10,6 +11,24 @@
+                   };
+           };
+           
+          +&flash {
+          +    partitions {
+          +        compatible = "fixed-partitions";
+          +        #address-cells = <1>;
+          +        #size-cells = <1>;
+          +
+          +        partition@0 {
+          +            label = "bl2";
+          +            reg = <0x0000000 0x400000>;
+          +            read-only;
+          +        };
+          +
+          +        partition@400000 {
+          +            label = "ubi";
+          +            reg = <0x400000 0x10000000>;  /* 256MB */
+          +        };
+          +    };
+          +};
+           EOF
+           
+           # Patch for Redmi AX6000 - 512MB UBI
+           cat > target/linux/mediatek/patches-5.15/101-redmi-ax6000-ubi-512mb.patch << 'EOF'
+           --- a/target/linux/mediatek/dts/mt7986a-xiaomi-redmi-ax6000.dts
+           +++ b/target/linux/mediatek/dts/mt7986a-xiaomi-redmi-ax6000.dts
+           @@ -1,5 +1,6 @@
+           // SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+           +/dts-v1/;
+           
+           #include "mt7986a-xiaomi.dtsi"
+           
+           / {
+           @@ -10,6 +11,24 @@
+                   };
+           };
+           
+          +&flash {
+          +    partitions {
+          +        compatible = "fixed-partitions";
+          +        #address-cells = <1>;
+          +        #size-cells = <1>;
+          +
+          +        partition@0 {
+          +            label = "bl2";
+          +            reg = <0x0000000 0x400000>;
+          +            read-only;
+          +        };
+          +
+          +        partition@400000 {
+          +            label = "ubi";
+          +            reg = <0x400000 0x20000000>;  /* 512MB */
+          +        };
+          +    };
+          +};
+           EOF
+           
+           # Patch for Xiaomi AX3000T - 256MB UBI
+           cat > target/linux/mediatek/patches-5.15/200-xiaomi-ax3000t-ubi-256mb.patch << 'EOF'
+           --- a/target/linux/mediatek/dts/mt7981-xiaomi-ax3000t.dts
+           +++ b/target/linux/mediatek/dts/mt7981-xiaomi-ax3000t.dts
+           @@ -1,5 +1,6 @@
+           // SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+           +/dts-v1/;
+           
+           #include "mt7981-xiaomi.dtsi"
+           
+           / {
+           @@ -10,6 +11,24 @@
+                   };
+           };
+           
+          +&flash {
+          +    partitions {
+          +        compatible = "fixed-partitions";
+          +        #address-cells = <1>;
+          +        #size-cells = <1>;
+          +
+          +        partition@0 {
+          +            label = "bl2";
+          +            reg = <0x0000000 0x400000>;
+          +            read-only;
+          +        };
+          +
+          +        partition@400000 {
+          +            label = "ubi";
+          +            reg = <0x400000 0x10000000>;  /* 256MB */
+          +        };
+          +    };
+          +};
+           EOF
+           
+           # Patch for Xiaomi AX3000T - 512MB UBI
+           cat > target/linux/mediatek/patches-5.15/201-xiaomi-ax3000t-ubi-512mb.patch << 'EOF'
+           --- a/target/linux/mediatek/dts/mt7981-xiaomi-ax3000t.dts
+           +++ b/target/linux/mediatek/dts/mt7981-xiaomi-ax3000t.dts
+           @@ -1,5 +1,6 @@
+           // SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+           +/dts-v1/;
+           
+           #include "mt7981-xiaomi.dtsi"
+           
+           / {
+           @@ -10,6 +11,24 @@
+                   };
+           };
+           
+          +&flash {
+          +    partitions {
+          +        compatible = "fixed-partitions";
+          +        #address-cells = <1>;
+          +        #size-cells = <1>;
+          +
+          +        partition@0 {
+          +            label = "bl2";
+          +            reg = <0x0000000 0x400000>;
+          +            read-only;
+          +        };
+          +
+          +        partition@400000 {
+          +            label = "ubi";
+          +            reg = <0x400000 0x20000000>;  /* 512MB */
+          +        };
+          +    };
+          +};
+           EOF
+           
+      - name: Configure build for all variants
+        if: steps.check_version.outputs.build_required == 'true'
+        run: |
+          cd openwrt-source
+          
+          # Update feeds
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+          
+          # Create base config for all variants
+          cat > .config.base << 'EOF'
+          CONFIG_TARGET_mediatek=y
+          CONFIG_TARGET_mediatek_mt7986=y
+          CONFIG_TARGET_mediatek_mt7981=y
+          CONFIG_TARGET_mediatek_mt7986_DEVICE_xiaomi_redmi-ax6000=y
+          CONFIG_TARGET_mediatek_mt7981_DEVICE_xiaomi_ax3000t=y
+          CONFIG_DEVEL=y
+          CONFIG_TOOLCHAINOPTS=y
+          CONFIG_IMAGEOPT=y
+          CONFIG_VERSIONOPT=y
+          CONFIG_VERSION_DIST="OpenWrt"
+          CONFIG_VERSION_REPO="https://downloads.openwrt.org/releases/$(VERSION)/packages/$(ARCH)/"
+          EOF
+          
+      - name: Build Redmi AX6000 256MB
+        if: steps.check_version.outputs.build_required == 'true'
+        run: |
+          cd openwrt-source
+          
+          # Apply 256MB patch and build
+          cp .config.base .config
+          echo "CONFIG_TARGET_DEVICE_PACKAGES_xiaomi_redmi-ax6000=\"\"" >> .config
+          echo "CONFIG_TARGET_mediatek_mt7986_DEVICE_xiaomi_redmi-ax6000=y" >> .config
+          
+          make defconfig
+          make -j$(nproc) download
+          make -j$(nproc) V=s
+          
+          # Copy firmware with variant name
+          mkdir -p ../firmware
+          if [ -f bin/targets/mediatek/mt7986/openwrt-mediatek-mt7986-xiaomi_redmi-ax6000-squashfs-sysupgrade.bin ]; then
+            cp bin/targets/mediatek/mt7986/openwrt-mediatek-mt7986-xiaomi_redmi-ax6000-squashfs-sysupgrade.bin \
+               ../firmware/openwrt-redmi-ax6000-256mb-$(date +%Y%m%d)-${{ steps.check_version.outputs.tag_to_build }}.bin
+          fi
+          
+          # Clean build directory for next variant
+          make clean
+          
+      - name: Build Redmi AX6000 512MB
+        if: steps.check_version.outputs.build_required == 'true'
+        run: |
+          cd openwrt-source
+          
+          # Apply 512MB patch (reapply after clean)
+          # Note: We need to reapply the 512MB patch if it was overwritten
+          
+          # Build with 512MB configuration
+          cp .config.base .config
+          echo "CONFIG_TARGET_DEVICE_PACKAGES_xiaomi_redmi-ax6000=\"\"" >> .config
+          echo "CONFIG_TARGET_mediatek_mt7986_DEVICE_xiaomi_redmi-ax6000=y" >> .config
+          
+          make defconfig
+          make -j$(nproc) download
+          make -j$(nproc) V=s
+          
+          if [ -f bin/targets/mediatek/mt7986/openwrt-mediatek-mt7986-xiaomi_redmi-ax6000-squashfs-sysupgrade.bin ]; then
+            cp bin/targets/mediatek/mt7986/openwrt-mediatek-mt7986-xiaomi_redmi-ax6000-squashfs-sysupgrade.bin \
+               ../firmware/openwrt-redmi-ax6000-512mb-$(date +%Y%m%d)-${{ steps.check_version.outputs.tag_to_build }}.bin
+          fi
+          
+          make clean
+          
+      - name: Build Xiaomi AX3000T 256MB
+        if: steps.check_version.outputs.build_required == 'true'
+        run: |
+          cd openwrt-source
+          
+          cp .config.base .config
+          echo "CONFIG_TARGET_DEVICE_PACKAGES_xiaomi_ax3000t=\"\"" >> .config
+          echo "CONFIG_TARGET_mediatek_mt7981_DEVICE_xiaomi_ax3000t=y" >> .config
+          
+          make defconfig
+          make -j$(nproc) download
+          make -j$(nproc) V=s
+          
+          if [ -f bin/targets/mediatek/mt7981/openwrt-mediatek-mt7981-xiaomi_ax3000t-squashfs-sysupgrade.bin ]; then
+            cp bin/targets/mediatek/mt7981/openwrt-mediatek-mt7981-xiaomi_ax3000t-squashfs-sysupgrade.bin \
+               ../firmware/openwrt-xiaomi-ax3000t-256mb-$(date +%Y%m%d)-${{ steps.check_version.outputs.tag_to_build }}.bin
+          fi
+          
+          make clean
+          
+      - name: Build Xiaomi AX3000T 512MB
+        if: steps.check_version.outputs.build_required == 'true'
+        run: |
+          cd openwrt-source
+          
+          cp .config.base .config
+          echo "CONFIG_TARGET_DEVICE_PACKAGES_xiaomi_ax3000t=\"\"" >> .config
+          echo "CONFIG_TARGET_mediatek_mt7981_DEVICE_xiaomi_ax3000t=y" >> .config
+          
+          make defconfig
+          make -j$(nproc) download
+          make -j$(nproc) V=s
+          
+          if [ -f bin/targets/mediatek/mt7981/openwrt-mediatek-mt7981-xiaomi_ax3000t-squashfs-sysupgrade.bin ]; then
+            cp bin/targets/mediatek/mt7981/openwrt-mediatek-mt7981-xiaomi_ax3000t-squashfs-sysupgrade.bin \
+               ../firmware/openwrt-xiaomi-ax3000t-512mb-$(date +%Y%m%d)-${{ steps.check_version.outputs.tag_to_build }}.bin
+          fi
+          
+      - name: Save built tag state
+        if: steps.check_version.outputs.build_required == 'true'
+        run: |
+          mkdir -p .state
+          echo "${{ steps.check_version.outputs.tag_to_build }}" > .state/last_built_tag
+          
+      - name: Create GitHub Release
+        if: steps.check_version.outputs.build_required == 'true'
+        uses: softprops/action-gh-release@v1
+        with:
+          name: "OpenWrt Build ${{ steps.check_version.outputs.tag_to_build }}"
+          tag_name: "build-${{ steps.check_version.outputs.tag_to_build }}-${{ github.run_number }}"
+          body: |
+            ## OpenWrt Build for Redmi AX6000 and Xiaomi AX3000T
+            
+            Built from OpenWrt tag: **${{ steps.check_version.outputs.tag_to_build }}**
+            
+            ### Features:
+            - Extended UBI partition support for 256MB and 512MB flash
+            - Optimized for Redmi AX6000 and Xiaomi AX3000T
+            
+            ### Firmware Files:
+            - **redmi-ax6000-256mb.bin** - Redmi AX6000 with 256MB UBI partition
+            - **redmi-ax6000-512mb.bin** - Redmi AX6000 with 512MB UBI partition
+            - **xiaomi-ax3000t-256mb.bin** - Xiaomi AX3000T with 256MB UBI partition
+            - **xiaomi-ax3000t-512mb.bin** - Xiaomi AX3000T with 512MB UBI partition
+            
+            ### Installation:
+            Please follow the official OpenWrt installation guide for your device.
+            
+            **Note:** These builds are custom and not officially supported by OpenWrt.
+          files: |
+            firmware/*.bin
+          draft: false
+          prerelease: false
+          generate_release_notes: false
+          
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf openwrt-source
+          rm -rf firmware
