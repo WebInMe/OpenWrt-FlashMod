@@ -66,7 +66,7 @@ jobs:
       - name: Install deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential flex gawk g++ gettext git libncurses5-dev libssl-dev python3 quilt rsync subversion swig unzip wget zlib1g-dev jq
+          sudo apt-get install -y build-essential flex gawk g++ gettext git libncurses5-dev libssl-dev python3 python3-distutils python3-setuptools quilt rsync subversion swig unzip wget zlib1g-dev jq
 
       - name: Clone OpenWrt
         run: |
@@ -92,20 +92,35 @@ jobs:
             fi
           fi
 
-      - name: Feeds
+      - name: Update feeds
         run: |
           cd openwrt
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      - name: Config
+      - name: Create default config
         run: |
           cd openwrt
-          echo "CONFIG_TARGET_mediatek=y" > .config
+          # Generate base config for mediatek target
+          make defconfig
+
+      - name: Modify config for device
+        run: |
+          cd openwrt
+          DEVICE="${{ matrix.device }}"
+          
+          # Enable mediatek filogic target
+          echo "CONFIG_TARGET_mediatek=y" >> .config
           echo "CONFIG_TARGET_mediatek_filogic=y" >> .config
-          echo "CONFIG_ALL_NONSHARED=y" >> .config
-          echo "CONFIG_ALL_KMODS=y" >> .config
-          echo "CONFIG_AUTOREMOVE=y" >> .config
+          
+          if [ "$DEVICE" = "redmi-ax6000" ]; then
+            echo "CONFIG_TARGET_mediatek_filogic_DEVICE_xiaomi_redmi-router-ax6000=y" >> .config
+          else
+            echo "CONFIG_TARGET_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t=y" >> .config
+          fi
+          
+          # Disable interactive config
+          echo "CONFIG_HAVE_DOT_CONFIG=y" >> .config
 
       - name: Download
         run: |
