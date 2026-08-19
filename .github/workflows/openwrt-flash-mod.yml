@@ -2,7 +2,7 @@ name: OpenWrt Auto Build
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # Run daily at midnight UTC
+    - cron: '0 0 * * *'
   workflow_dispatch:
     inputs:
       force_build:
@@ -142,10 +142,8 @@ jobs:
         run: |
           cd openwrt
           
-          # Create patch directory
           mkdir -p ../patches/dts
           
-          # Patch for Redmi AX6000 - 256MB UBI
           if [ "${{ matrix.device }}" == "redmi-ax6000" ] && [ "${{ matrix.flash }}" == "256mb" ]; then
             cat > target/linux/mediatek/dts/mt7986a-xiaomi-redmi-router-ax6000-ubi-256.dts << 'EOF'
 // SPDX-License-Identifier: (GPL-2.0 OR MIT)
@@ -184,14 +182,13 @@ jobs:
 
   partition@2400000 {
     label = "ubi";
-    reg = <0x2400000 0x10000000>;  /* 256MB */
+    reg = <0x2400000 0x10000000>;
   };
 };
 EOF
             echo "Applied 256MB UBI patch for Redmi AX6000"
           fi
           
-          # Patch for Redmi AX6000 - 512MB UBI
           if [ "${{ matrix.device }}" == "redmi-ax6000" ] && [ "${{ matrix.flash }}" == "512mb" ]; then
             cat > target/linux/mediatek/dts/mt7986a-xiaomi-redmi-router-ax6000-ubi-512.dts << 'EOF'
 // SPDX-License-Identifier: (GPL-2.0 OR MIT)
@@ -230,14 +227,13 @@ EOF
 
   partition@2400000 {
     label = "ubi";
-    reg = <0x2400000 0x20000000>;  /* 512MB */
+    reg = <0x2400000 0x20000000>;
   };
 };
 EOF
             echo "Applied 512MB UBI patch for Redmi AX6000"
           fi
           
-          # Patch for Xiaomi AX3000T - 256MB UBI
           if [ "${{ matrix.device }}" == "xiaomi-ax3000t" ] && [ "${{ matrix.flash }}" == "256mb" ]; then
             cat > target/linux/mediatek/dts/mt7986b-xiaomi-mi-router-ax3000t-ubi-256.dts << 'EOF'
 // SPDX-License-Identifier: (GPL-2.0 OR MIT)
@@ -264,14 +260,13 @@ EOF
 
   partition@2400000 {
     label = "ubi";
-    reg = <0x2400000 0x10000000>;  /* 256MB */
+    reg = <0x2400000 0x10000000>;
   };
 };
 EOF
             echo "Applied 256MB UBI patch for Xiaomi AX3000T"
           fi
           
-          # Patch for Xiaomi AX3000T - 512MB UBI
           if [ "${{ matrix.device }}" == "xiaomi-ax3000t" ] && [ "${{ matrix.flash }}" == "512mb" ]; then
             cat > target/linux/mediatek/dts/mt7986b-xiaomi-mi-router-ax3000t-ubi-512.dts << 'EOF'
 // SPDX-License-Identifier: (GPL-2.0 OR MIT)
@@ -298,7 +293,7 @@ EOF
 
   partition@2400000 {
     label = "ubi";
-    reg = <0x2400000 0x20000000>;  /* 512MB */
+    reg = <0x2400000 0x20000000>;
   };
 };
 EOF
@@ -315,11 +310,11 @@ EOF
         run: |
           cd openwrt
           
-          # Create base config
           cat > .config << 'EOF'
 CONFIG_TARGET_mediatek=y
 CONFIG_TARGET_mediatek_filogic=y
-CONFIG_TARGET_mediatek_filogic_DEVICE_${{ matrix.device }}=y
+CONFIG_TARGET_mediatek_filogic_DEVICE_xiaomi_redmi-router-ax6000=y
+CONFIG_TARGET_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t=y
 CONFIG_PACKAGES=y
 CONFIG_ALL_NONSHARED=y
 CONFIG_ALL_KMODS=y
@@ -331,7 +326,6 @@ CONFIG_KERNEL_BUILD_USER="github-actions"
 CONFIG_KERNEL_BUILD_DOMAIN="actions.openwrt.org"
 EOF
           
-          # Add device-specific config
           if [ "${{ matrix.device }}" == "redmi-ax6000" ]; then
             echo "CONFIG_TARGET_mediatek_filogic_DEVICE_xiaomi_redmi-router-ax6000=y" >> .config
           elif [ "${{ matrix.device }}" == "xiaomi-ax3000t" ]; then
@@ -353,11 +347,8 @@ EOF
         run: |
           mkdir -p artifacts
           cd openwrt
-          find bin/targets/ -name "*.bin" -o -name "*.itb" -o -name "*.ubi" | cp -t ../artifacts {} \; 2>/dev/null || true
-          find bin/targets/ -type f -name "*${{ matrix.device }}*" -exec cp {} ../artifacts/ \; 2>/dev/null || true
-          
-          # Copy all build artifacts
-          cp -r bin/targets/mediatek/filogic/* ../artifacts/ 2>/dev/null || true
+          find bin/targets/ -type f \( -name "*.bin" -o -name "*.itb" -o -name "*.ubi" \) -exec cp {} ../artifacts/ \;
+          find bin/targets/mediatek/filogic -type f -exec cp {} ../artifacts/ \; 2>/dev/null || true
           
           cd ../artifacts
           ls -la
@@ -389,7 +380,6 @@ EOF
           echo "$LATEST_TAG" > ${{ env.VERSION_FILE }}
           echo "$LATEST_TAG" > ${{ env.RELEASE_TAG_FILE }}
           
-          # Commit and push version update
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add ${{ env.VERSION_FILE }} ${{ env.RELEASE_TAG_FILE }}
@@ -399,7 +389,7 @@ EOF
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: openwrt-${{ needs.check-version.outputs.latest_tag }}-$(date +%Y%m%d)
+          tag_name: openwrt-${{ needs.check-version.outputs.latest_tag }}-${{ github.run_number }}
           name: OpenWrt ${{ needs.check-version.outputs.latest_tag }} - Custom Builds
           body: |
             ## OpenWrt ${{ needs.check-version.outputs.latest_tag }} Custom Builds
@@ -425,7 +415,10 @@ EOF
             
             **Warning**: Use at your own risk. Extended UBI partitions may affect dual-boot functionality.
           files: |
-            artifacts/**/*
+            artifacts/redmi_ax6000_256mb/**/*
+            artifacts/redmi_ax6000_512mb/**/*
+            artifacts/xiaomi_ax3000t_256mb/**/*
+            artifacts/xiaomi_ax3000t_512mb/**/*
           draft: false
           prerelease: false
           generate_release_notes: true
