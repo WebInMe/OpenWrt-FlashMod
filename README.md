@@ -59,3 +59,27 @@ The UBI partition is extended from the default size to:
 - **512MB variant**: `reg = <0x2400000 0x20000000>;`
 
 ### Partition Layout
+
+0x000000 - 0x580000 : Bootloader
+0x580000 - 0x5c0000 : Crash
+0x5c0000 - 0x600000 : Crash log
+0x600000 - 0x2400000 : UBI Kernel (30MB)
+0x2400000 - END : UBI (256MB or 512MB)
+
+## Warnings
+
+⚠️ **Use at your own risk!** Extended UBI partitions may:
+- Affect dual-boot functionality
+- Void warranty
+- Brick device if flashed incorrectly
+
+Always backup original firmware before flashing.
+
+## License
+
+MIT License - See LICENSE file
+
+## Credits
+
+- [OpenWrt Project](https://openwrt.org)
+- [GitHub Actions](https://github.com/features/actions)
