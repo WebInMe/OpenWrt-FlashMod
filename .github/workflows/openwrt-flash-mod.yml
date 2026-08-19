@@ -119,4 +119,56 @@ jobs:
           
           echo "CONFIG_HAVE_DOT_CONFIG=y" >> .config
 
-      - name: Down
+      - name: Download
+        run: |
+          cd openwrt
+          make download -j$(nproc)
+
+      - name: Build
+        run: |
+          cd openwrt
+          make -j$(nproc) V=s
+
+      - name: Prepare
+        run: |
+          mkdir -p artifacts
+          cp -r openwrt/bin/targets/mediatek/filogic/* artifacts/
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.device }}-${{ matrix.flash }}-${{ needs.check-version.outputs.latest_tag }}
+          path: artifacts/
+
+  release:
+    needs: [check-version, build]
+    if: needs.check-version.outputs.has_new == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Update version
+        run: |
+          echo "${{ needs.check-version.outputs.latest_tag }}" > $VERSION_FILE
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add $VERSION_FILE
+          git commit -m "Update" || true
+          git push || true
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: openwrt-${{ needs.check-version.outputs.latest_tag }}-${{ github.run_number }}
+          name: OpenWrt ${{ needs.check-version.outputs.latest_tag }}
+          body: Automated build with extended UBI
+          files: artifacts/**/*
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
