@@ -44,7 +44,6 @@ jobs:
             CURRENT_TAG=$(cat ${{ env.VERSION_FILE }})
             echo "current_tag=$CURRENT_TAG" >> $GITHUB_OUTPUT
           else
-            CURRENT_TAG=""
             echo "current_tag=" >> $GITHUB_OUTPUT
           fi
           
@@ -52,10 +51,8 @@ jobs:
           
           if [ "$CURRENT_TAG" != "$LATEST_TAG" ] || [ "${{ github.event.inputs.force_build }}" == "true" ]; then
             echo "has_new=true" >> $GITHUB_OUTPUT
-            echo "New version detected: $LATEST_TAG (current: $CURRENT_TAG)"
           else
             echo "has_new=false" >> $GITHUB_OUTPUT
-            echo "No new version (current: $CURRENT_TAG)"
           fi
 
   build-openwrt:
@@ -95,212 +92,88 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            ccache \
-            ecj \
-            fastjar \
-            flex \
-            g++ \
-            gawk \
-            gcc-multilib \
-            g++-multilib \
-            gettext \
-            git \
-            java-propose-classpath \
-            libelf-dev \
-            libncurses5-dev \
-            libncursesw5-dev \
-            libssl-dev \
-            libpython3-dev \
-            python3 \
-            python3-distutils \
-            python3-setuptools \
-            python3-pip \
-            python3-ply \
-            python3-pyelftools \
-            quilt \
-            rsync \
-            subversion \
-            swig \
-            time \
-            unzip \
-            wget \
-            zlib1g-dev \
-            jq
+          sudo apt-get install -y build-essential ccache flex gawk g++ gettext git libncurses5-dev libssl-dev python3 python3-distutils python3-setuptools quilt rsync subversion swig unzip wget zlib1g-dev jq
 
       - name: Clone OpenWrt at latest tag
         run: |
           LATEST_TAG="${{ needs.check-version.outputs.latest_tag }}"
-          echo "Cloning OpenWrt at tag: $LATEST_TAG"
           git clone --depth 1 --branch "$LATEST_TAG" ${{ env.REPO_URL }} openwrt
           cd openwrt
-          git rev-parse HEAD
           echo "OPENWRT_TAG=$LATEST_TAG" >> $GITHUB_ENV
 
-      - name: Apply DTS patches for UBI extension
+      - name: Apply DTS patches
         run: |
           cd openwrt
           
-          mkdir -p ../patches/dts
-          
           if [ "${{ matrix.device }}" == "redmi-ax6000" ] && [ "${{ matrix.flash }}" == "256mb" ]; then
-            cat > target/linux/mediatek/dts/mt7986a-xiaomi-redmi-router-ax6000-ubi-256.dts << 'EOF'
-// SPDX-License-Identifier: (GPL-2.0 OR MIT)
-
+            cat > target/linux/mediatek/dts/mt7986a-xiaomi-redmi-router-ax6000-ubi-256.dts << 'DTSEOF'
 /dts-v1/;
 #include "mt7986a-xiaomi-redmi-router-ax6000.dtsi"
-
 / {
   model = "Xiaomi Redmi Router AX6000 (256MB UBI)";
   compatible = "xiaomi,redmi-router-ax6000-ubi-256", "mediatek,mt7986a";
 };
-
-&spi_nand_flash {
-  mediatek,nmbm;
-  mediatek,bmt-max-ratio = <1>;
-  mediatek,bmt-max-reserved-blocks = <64>;
-};
-
 &partitions {
-  partition@580000 {
-    label = "crash";
-    reg = <0x580000 0x40000>;
-    read-only;
-  };
-
-  partition@5c0000 {
-    label = "crash_log";
-    reg = <0x5c0000 0x40000>;
-    read-only;
-  };
-
-  partition@600000 {
-    label = "ubi_kernel";
-    reg = <0x600000 0x1e00000>;
-  };
-
   partition@2400000 {
     label = "ubi";
     reg = <0x2400000 0x10000000>;
   };
 };
-EOF
-            echo "Applied 256MB UBI patch for Redmi AX6000"
+DTSEOF
           fi
           
           if [ "${{ matrix.device }}" == "redmi-ax6000" ] && [ "${{ matrix.flash }}" == "512mb" ]; then
-            cat > target/linux/mediatek/dts/mt7986a-xiaomi-redmi-router-ax6000-ubi-512.dts << 'EOF'
-// SPDX-License-Identifier: (GPL-2.0 OR MIT)
-
+            cat > target/linux/mediatek/dts/mt7986a-xiaomi-redmi-router-ax6000-ubi-512.dts << 'DTSEOF'
 /dts-v1/;
 #include "mt7986a-xiaomi-redmi-router-ax6000.dtsi"
-
 / {
   model = "Xiaomi Redmi Router AX6000 (512MB UBI)";
   compatible = "xiaomi,redmi-router-ax6000-ubi-512", "mediatek,mt7986a";
 };
-
-&spi_nand_flash {
-  mediatek,nmbm;
-  mediatek,bmt-max-ratio = <1>;
-  mediatek,bmt-max-reserved-blocks = <64>;
-};
-
 &partitions {
-  partition@580000 {
-    label = "crash";
-    reg = <0x580000 0x40000>;
-    read-only;
-  };
-
-  partition@5c0000 {
-    label = "crash_log";
-    reg = <0x5c0000 0x40000>;
-    read-only;
-  };
-
-  partition@600000 {
-    label = "ubi_kernel";
-    reg = <0x600000 0x1e00000>;
-  };
-
   partition@2400000 {
     label = "ubi";
     reg = <0x2400000 0x20000000>;
   };
 };
-EOF
-            echo "Applied 512MB UBI patch for Redmi AX6000"
+DTSEOF
           fi
           
           if [ "${{ matrix.device }}" == "xiaomi-ax3000t" ] && [ "${{ matrix.flash }}" == "256mb" ]; then
-            cat > target/linux/mediatek/dts/mt7986b-xiaomi-mi-router-ax3000t-ubi-256.dts << 'EOF'
-// SPDX-License-Identifier: (GPL-2.0 OR MIT)
-
+            cat > target/linux/mediatek/dts/mt7986b-xiaomi-mi-router-ax3000t-ubi-256.dts << 'DTSEOF'
 /dts-v1/;
 #include "mt7986b-xiaomi-mi-router-ax3000t.dtsi"
-
 / {
   model = "Xiaomi Mi Router AX3000T (256MB UBI)";
   compatible = "xiaomi,mi-router-ax3000t-ubi-256", "mediatek,mt7986b";
 };
-
-&spi_nand_flash {
-  mediatek,nmbm;
-  mediatek,bmt-max-ratio = <1>;
-  mediatek,bmt-max-reserved-blocks = <64>;
-};
-
 &partitions {
-  partition@600000 {
-    label = "ubi_kernel";
-    reg = <0x600000 0x1e00000>;
-  };
-
   partition@2400000 {
     label = "ubi";
     reg = <0x2400000 0x10000000>;
   };
 };
-EOF
-            echo "Applied 256MB UBI patch for Xiaomi AX3000T"
+DTSEOF
           fi
           
           if [ "${{ matrix.device }}" == "xiaomi-ax3000t" ] && [ "${{ matrix.flash }}" == "512mb" ]; then
-            cat > target/linux/mediatek/dts/mt7986b-xiaomi-mi-router-ax3000t-ubi-512.dts << 'EOF'
-// SPDX-License-Identifier: (GPL-2.0 OR MIT)
-
+            cat > target/linux/mediatek/dts/mt7986b-xiaomi-mi-router-ax3000t-ubi-512.dts << 'DTSEOF'
 /dts-v1/;
 #include "mt7986b-xiaomi-mi-router-ax3000t.dtsi"
-
 / {
   model = "Xiaomi Mi Router AX3000T (512MB UBI)";
   compatible = "xiaomi,mi-router-ax3000t-ubi-512", "mediatek,mt7986b";
 };
-
-&spi_nand_flash {
-  mediatek,nmbm;
-  mediatek,bmt-max-ratio = <1>;
-  mediatek,bmt-max-reserved-blocks = <64>;
-};
-
 &partitions {
-  partition@600000 {
-    label = "ubi_kernel";
-    reg = <0x600000 0x1e00000>;
-  };
-
   partition@2400000 {
     label = "ubi";
     reg = <0x2400000 0x20000000>;
   };
 };
-EOF
-            echo "Applied 512MB UBI patch for Xiaomi AX3000T"
+DTSEOF
           fi
 
-      - name: Update and install feeds
+      - name: Update feeds
         run: |
           cd openwrt
           ./scripts/feeds update -a
@@ -309,55 +182,43 @@ EOF
       - name: Create .config
         run: |
           cd openwrt
-          
-          cat > .config << 'EOF'
+          cat > .config << 'CONFIGEOF'
 CONFIG_TARGET_mediatek=y
 CONFIG_TARGET_mediatek_filogic=y
 CONFIG_TARGET_mediatek_filogic_DEVICE_xiaomi_redmi-router-ax6000=y
 CONFIG_TARGET_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t=y
-CONFIG_PACKAGES=y
 CONFIG_ALL_NONSHARED=y
 CONFIG_ALL_KMODS=y
-CONFIG_ALL=y
 CONFIG_AUTOREMOVE=y
-CONFIG_SIGNED_PACKAGES=y
-CONFIG_SIGNATURE_CHECK=y
 CONFIG_KERNEL_BUILD_USER="github-actions"
 CONFIG_KERNEL_BUILD_DOMAIN="actions.openwrt.org"
-EOF
-          
+CONFIGEOF
           if [ "${{ matrix.device }}" == "redmi-ax6000" ]; then
             echo "CONFIG_TARGET_mediatek_filogic_DEVICE_xiaomi_redmi-router-ax6000=y" >> .config
           elif [ "${{ matrix.device }}" == "xiaomi-ax3000t" ]; then
             echo "CONFIG_TARGET_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t=y" >> .config
           fi
 
-      - name: Download package
+      - name: Download
         run: |
           cd openwrt
           make download -j$(nproc)
 
-      - name: Build OpenWrt
+      - name: Build
         run: |
           cd openwrt
           make -j$(nproc) V=s
-          echo "Build completed for ${{ matrix.config_name }}"
 
       - name: Prepare artifacts
         run: |
           mkdir -p artifacts
-          cd openwrt
-          find bin/targets/ -type f \( -name "*.bin" -o -name "*.itb" -o -name "*.ubi" \) -exec cp {} ../artifacts/ \;
-          find bin/targets/mediatek/filogic -type f -exec cp {} ../artifacts/ \; 2>/dev/null || true
-          
-          cd ../artifacts
-          ls -la
-          echo "ARTIFACT_NAME=${{ matrix.config_name }}-${{ needs.check-version.outputs.latest_tag }}" >> $GITHUB_ENV
+          cp -r openwrt/bin/targets/mediatek/filogic/* artifacts/
+          ls -la artifacts/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ARTIFACT_NAME }}
+          name: ${{ matrix.config_name }}-${{ needs.check-version.outputs.latest_tag }}
           path: artifacts/
           retention-days: 30
 
@@ -366,7 +227,7 @@ EOF
     if: needs.check-version.outputs.has_new == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Download all artifacts
@@ -374,64 +235,30 @@ EOF
         with:
           path: artifacts
 
-      - name: Update version file
+      - name: Update version
         run: |
-          LATEST_TAG="${{ needs.check-version.outputs.latest_tag }}"
-          echo "$LATEST_TAG" > ${{ env.VERSION_FILE }}
-          echo "$LATEST_TAG" > ${{ env.RELEASE_TAG_FILE }}
-          
+          echo "${{ needs.check-version.outputs.latest_tag }}" > ${{ env.VERSION_FILE }}
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add ${{ env.VERSION_FILE }} ${{ env.RELEASE_TAG_FILE }}
-          git commit -m "Update to OpenWrt $LATEST_TAG" || echo "No changes to commit"
-          git push || echo "Push failed, continuing..."
+          git add ${{ env.VERSION_FILE }}
+          git commit -m "Update to ${{ needs.check-version.outputs.latest_tag }}" || true
+          git push || true
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: openwrt-${{ needs.check-version.outputs.latest_tag }}-${{ github.run_number }}
-          name: OpenWrt ${{ needs.check-version.outputs.latest_tag }} - Custom Builds
+          name: OpenWrt ${{ needs.check-version.outputs.latest_tag }}
           body: |
             ## OpenWrt ${{ needs.check-version.outputs.latest_tag }} Custom Builds
             
-            Automated builds with extended UBI partitions for:
-            - Redmi AX6000 (256MB & 512MB UBI)
-            - Xiaomi AX3000T (256MB & 512MB UBI)
+            Extended UBI partitions for Redmi AX6000 and Xiaomi AX3000T.
             
-            ### Build Variants:
-            - redmi_ax6000_256mb - Redmi AX6000 with 256MB UBI partition
-            - redmi_ax6000_512mb - Redmi AX6000 with 512MB UBI partition
-            - xiaomi_ax3000t_256mb - Xiaomi AX3000T with 256MB UBI partition
-            - xiaomi_ax3000t_512mb - Xiaomi AX3000T with 512MB UBI partition
-            
-            ### Changes:
-            - Extended UBI partition sizes for better package support
-            - Built from official OpenWrt ${{ needs.check-version.outputs.latest_tag }}
-            
-            ### Installation:
-            1. Download the appropriate firmware for your device
-            2. Follow device-specific installation instructions
-            3. Flash via TFTP or recovery mode as needed
-            
-            **Warning**: Use at your own risk. Extended UBI partitions may affect dual-boot functionality.
-          files: |
-            artifacts/redmi_ax6000_256mb/**/*
-            artifacts/redmi_ax6000_512mb/**/*
-            artifacts/xiaomi_ax3000t_256mb/**/*
-            artifacts/xiaomi_ax3000t_512mb/**/*
+            ### Variants:
+            - 256MB UBI
+            - 512MB UBI
+          files: artifacts/**/*
           draft: false
           prerelease: false
-          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  cleanup:
-    needs: [check-version, build-openwrt, create-release]
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Delete old workflow runs
-        uses: Mattraks/delete-workflow-runs@v2
-        with:
-          retain_days: 7
-          keep_minimum_runs: 3
