@@ -87,18 +87,24 @@ jobs:
 
     - name: Configure firmware for Xiaomi AX3000T
       run: |
-        cd openwrt
+        # cd openwrt
+        CONFIG_FILE="openwrt/.config" 
+        VERSION="${{ steps.get_latest.outputs.version }}" 
         
         # Проверяем наличие файла конфигурации
-        # if [ -f "$GITHUB_WORKSPACE/ax3000t.config" ]; then
-        if [ -f "ax3000t.config" ]; then
+        if [ -f "$GITHUB_WORKSPACE/ax3000t.config" ]; then
+        #if [ -f "ax3000t.config" ]; then
           echo "✅ Using existing config file"
-          # cp $GITHUB_WORKSPACE/ax3000t.config .config
-          cp ax3000t.config .config
+          cp $GITHUB_WORKSPACE/ax3000t.config openwrt/.config
+
+          # Replace the repo URL version part
+          sed -i "s|CONFIG_VERSION_REPO=\"https://downloads.openwrt.org/releases/[0-9.]*\"|CONFIG_VERSION_REPO=\"https://downloads.openwrt.org/releases/${VERSION}\"|" "$CONFIG_FILE"
+          
+          #cp ax3000t.config .config
         else
           echo "⚠️ ax3000t.config not found, generating automatic config"
           # Генерируем базовую конфигурацию для Xiaomi AX3000T
-          cat > .config << 'EOF'
+          cat > $CONFIG_FILE << 'EOF'
         # Target configuration for Xiaomi AX3000T
         CONFIG_TARGET_mediatek=y
         CONFIG_TARGET_mediatek_filogic=y
@@ -184,18 +190,20 @@ jobs:
         CONFIG_VERSION_MANUFACTURER_URL=""
         CONFIG_VERSION_NUMBER=""
         CONFIG_VERSION_PRODUCT=""
-        CONFIG_VERSION_REPO="https://downloads.openwrt.org/releases/${{ steps.get_latest.outputs.version }}"
+        CONFIG_VERSION_REPO="https://downloads.openwrt.org/releases/$VERSION"
         CONFIG_VERSION_SUPPORT_URL=""
         EOF
-          
+
           # Обновляем конфигурацию с разрешением зависимостей
           echo "📦 Running oldconfig to resolve dependencies..."
+          cd openwrt
           make oldconfig
         fi
         
+        
         # Показываем финальную конфигурацию
         echo "📋 Final configuration:"
-        cat .config | grep -E "CONFIG_TARGET|CONFIG_DEVEL" || true
+        cat $CONFIG_FILE | grep -E "CONFIG_TARGET|CONFIG_DEVEL" || true
 
     - name: Build firmware
       run: |
