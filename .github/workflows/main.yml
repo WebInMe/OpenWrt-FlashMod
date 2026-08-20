@@ -64,11 +64,20 @@ jobs:
           gcc-multilib g++-multilib gettext git libncurses5-dev libssl-dev \
           python3-setuptools rsync swig unzip zlib1g-dev file wget
 
+    - name: Get latest tag
+      id: get_latest
+      run: |
+        TAG=$(curl -s https://api.github.com/repos/openwrt/openwrt/releases/latest | jq -r '.tag_name')
+        echo "latest_tag=$TAG" >> $GITHUB_OUTPUT
+
+        VERSION="${TAG#v}"
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
     - name: Clone OpenWrt source code by tag
       run: |
         git clone https://github.com/openwrt/openwrt openwrt
         cd openwrt
-        git checkout tags/v25.12.5
+        git checkout ${{ steps.get_latest.outputs.latest_tag }}
 
     - name: Update and install feeds
       run: |
@@ -175,7 +184,7 @@ jobs:
         CONFIG_VERSION_MANUFACTURER_URL=""
         CONFIG_VERSION_NUMBER=""
         CONFIG_VERSION_PRODUCT=""
-        CONFIG_VERSION_REPO="https://downloads.openwrt.org/releases/25.12.5"
+        CONFIG_VERSION_REPO="https://downloads.openwrt.org/releases/${{ steps.get_latest.outputs.version }}"
         CONFIG_VERSION_SUPPORT_URL=""
         EOF
           
@@ -203,11 +212,17 @@ jobs:
         echo "## OpenWrt Firmware for Xiaomi AX3000T" > release/note.md
         echo "Build date: $(date)" >> release/note.md
 
+    - name: Set release tag
+      id: release_tag
+      run: |
+        echo "tag=openwrt-${{ steps.get_latest.outputs.latest_tag }}-ax3000t-$(date +%Y%m%d-%H%M%S)" >> "$GITHUB_OUTPUT"
+        echo "Release tag: openwrt-${{ steps.get_latest.outputs.latest_tag }}-ax3000t-$(date +%Y%m%d-%H%M%S)"
+
     - name: Create GitHub Release
       if: success()
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: "openwrt-ax3000t-$(date +'%Y%m%d-%H%M%S')"
+        tag_name: "${{ steps.release_tag.outputs.tag }}"
         name: "OpenWrt Firmware for Xiaomi AX3000T"
         body_path: "openwrt/release/note.md"
         files: |
