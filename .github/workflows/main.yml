@@ -25,6 +25,36 @@ jobs:
         remove-haskell: 'true'
         remove-codeql: 'true'
         remove-docker-images: 'true'
+    
+    - name: Additional cleanup
+      run: |
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /usr/local/share/boost
+        sudo rm -rf /usr/local/graalvm
+        sudo rm -rf /usr/local/.ghcup
+        sudo rm -rf /usr/local/go
+        sudo rm -rf /usr/local/julia*
+        sudo rm -rf /usr/local/maven*
+        sudo rm -rf /usr/local/miniconda
+        sudo rm -rf /usr/local/node*
+        sudo rm -rf /usr/local/pypy*
+        sudo rm -rf /usr/local/swift*
+        sudo rm -rf /usr/local/lib/erlang
+        sudo docker system prune -af
+        sudo apt clean
+        sudo apt autoclean
+        df -h
+    - name: Remove and disable snap
+      run: |
+        sudo systemctl stop snapd
+        sudo systemctl disable snapd
+        sudo apt remove --purge -y snapd
+        sudo apt-mark hold snapd
+        sudo rm -rf /var/lib/snapd
+        sudo rm -rf /snap
+        df -h
 
     - name: Install build dependencies
       run: |
