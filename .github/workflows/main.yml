@@ -86,9 +86,11 @@ jobs:
         cd openwrt
         
         # Проверяем наличие файла конфигурации
-        if [ -f "$GITHUB_WORKSPACE/ax3000t.config" ]; then
+        # if [ -f "$GITHUB_WORKSPACE/ax3000t.config" ]; then
+        if [ -f "ax3000t.config" ]; then
           echo "✅ Using existing config file"
-          cp $GITHUB_WORKSPACE/ax3000t.config .config
+          # cp $GITHUB_WORKSPACE/ax3000t.config .config
+          cp ax3000t.config .config
         else
           echo "⚠️ ax3000t.config not found, generating automatic config"
           # Генерируем базовую конфигурацию для Xiaomi AX3000T
