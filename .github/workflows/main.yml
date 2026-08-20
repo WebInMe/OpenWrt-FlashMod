@@ -197,7 +197,7 @@ jobs:
           # Обновляем конфигурацию с разрешением зависимостей
           echo "📦 Running oldconfig to resolve dependencies..."
           cd openwrt
-          make oldconfig
+          make defconfig
         fi
         
         
@@ -205,11 +205,20 @@ jobs:
         echo "📋 Final configuration:"
         cat $CONFIG_FILE | grep -E "CONFIG_TARGET|CONFIG_DEVEL" || true
 
+    - name: Final configuration
+      run: |
+        cat openwrt/.config 
+
     - name: Build firmware
       run: |
         cd openwrt
         make -j$(nproc) download
         make -j$(nproc) V=s
+
+    - name: Show vermagic
+      run: |
+        cd openwrt
+        find build_dir/ -name ".vermagic" -exec cat {} + 2>/dev/null | tr -d '[:space:]'
 
     - name: Prepare release artifacts
       if: success()
@@ -236,5 +245,7 @@ jobs:
         files: |
           openwrt/release/*.bin
           openwrt/release/*.itb
+          openwrt/release/*.img
+        draft: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
