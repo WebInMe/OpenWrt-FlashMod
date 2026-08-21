@@ -1,12 +1,57 @@
-name: Build OpenWrt for Xiaomi AX3000T
+name: Build Custom OpenWrt
 
 on:
-  workflow_dispatch:        # Разрешает ручной запуск сборки
+  workflow_dispatch:
+    inputs:
+        force_build:
+          description: 'Force build'
+          required: false
+          default: false
+          type: boolean
+          
   schedule:
     - cron: '0 0 * * 0'     # Опционально: автоматическая сборка каждое воскресенье в 00:00
 
+env:
+  VERSION_FILE: .openwrt_version
+
 jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      has_new: ${{ steps.check.outputs.has_new }}
+      latest_tag: ${{ steps.get_latest.outputs.latest_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get latest tag
+        id: get_latest
+        run: |
+          TAG=$(curl -s https://api.github.com/repos/openwrt/openwrt/releases/latest | jq -r '.tag_name')
+          echo "latest_tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Latest tag is $TAG"
+
+      - name: Check version
+        id: check
+        run: |
+          if [ -f "$VERSION_FILE" ]; then
+            CURRENT=$(cat $VERSION_FILE)
+          else
+            CURRENT=""
+          fi
+          
+          echo "Current tag is $CURRENT"
+          
+          LATEST="${{ steps.get_latest.outputs.latest_tag }}"
+          if [ "$CURRENT" != "$LATEST" ] || [ "${{ github.event.inputs.force_build }}" = "true" ]; then
+            echo "has_new=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_new=false" >> $GITHUB_OUTPUT
+          fi
   build:
+    needs: check-version
+    if: needs.check-version.outputs.has_new == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write        # Необходимо для создания Release
