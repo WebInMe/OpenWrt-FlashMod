@@ -79,7 +79,7 @@ jobs:
             d=${d%/}  # remove trailing slash
 
             # Only consider device folders matching ax*
-            [[ "$d" == ax* ]] || continue
+            [[ "$d" == AX* ]] || continue
 
             # Find all .patch files in this folder
             patch_files=()
