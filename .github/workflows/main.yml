@@ -65,30 +65,52 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+        
       - id: set-matrix
         run: |
           set -euo pipefail
-      
-          devices=()
-          for d in */; do
-            d=${d%/}           
-            [[ "$d" == ax* ]] || continue
-            devices+=("$d")
-          done
-      
+
           items=()
-          for dev in "${devices[@]}"; do
-            for p in "$dev"/*.patch; do
+
+          # Scan all ax* folders (adjust pattern if needed)
+          for d in */; do
+            d=${d%/}  # remove trailing slash
+
+            # Only consider device folders matching ax*
+            [[ "$d" == ax* ]] || continue
+
+            # Find all .patch files in this folder
+            patch_files=()
+            for p in "$d"/*.patch; do
               [ -f "$p" ] || continue
+              patch_files+=("$p")
+            done
+
+            # If no patch files, skip this folder entirely
+            if [ "${#patch_files[@]}" -eq 0 ]; then
+              echo "⚠️  No .patch files in $d – skipping"
+              continue
+            fi
+
+            # Create one matrix entry per patch file
+            for p in "${patch_files[@]}"; do
               patch_name=$(basename "$p" .patch)  # e.g. 256mb
-              items+=("{\"device\":\"$dev\",\"patch\":\"$patch_name\"}")
+              items+=("{\"device\":\"$d\",\"patch\":\"$patch_name\"}")
             done
           done
-      
+
+          # If nothing found, still output a valid (empty) matrix
+          if [ "${#items[@]}" -eq 0 ]; then
+            echo "⚠️  No device/patch combinations found"
+            echo "matrix=[]" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           json=$(printf '%s\n' "${items[@]}" | jq -s -c '.')
           echo "matrix=$json" >> "$GITHUB_OUTPUT"
-          echo "strategy matrix"
+          echo "Final strategy matrix:"
           echo "$json"
           
   build:
