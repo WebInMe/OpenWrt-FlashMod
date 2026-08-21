@@ -74,8 +74,9 @@ jobs:
 
           items=()
 
+          cd DEVICES
           # Scan all ax* folders (adjust pattern if needed)
-          for d in DEVICES/*/; do
+          for d in */; do
             d=${d%/}  # remove trailing slash
 
             # Only consider device folders matching ax*
