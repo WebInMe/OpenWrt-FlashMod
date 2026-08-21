@@ -57,31 +57,42 @@ jobs:
             echo "has_new=false" >> $GITHUB_OUTPUT
             echo "New version not found. Nothing to build..."
           fi
-          
-  release:
-    needs: check-version #[check-version, build]
-    if: needs.check-version.outputs.has_new == 'true'
+
+  create_strategy:
+    #needs: check-version
+    #if: needs.check-version.outputs.has_new == 'true'
     runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Download
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: Update version
+      - uses: actions/checkout@v4
+      - id: set-matrix
         run: |
-          echo "${{ needs.check-version.outputs.latest_tag }}" > $VERSION_FILE
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add $VERSION_FILE
-          git commit -m "New release ${{ needs.check-version.outputs.latest_tag }}" || true
-          git push || true
+          set -euo pipefail
+      
+          devices=()
+          for d in */; do
+            d=${d%/}           
+            [[ "$d" == ax* ]] || continue
+            devices+=("$d")
+          done
+      
+          items=()
+          for dev in "${devices[@]}"; do
+            for p in "$dev"/*.patch; do
+              [ -f "$p" ] || continue
+              patch_name=$(basename "$p" .patch)  # e.g. 256mb
+              items+=("{\"device\":\"$dev\",\"patch\":\"$patch_name\"}")
+            done
+          done
+      
+          json=$(printf '%s\n' "${items[@]}" | jq -s -c '.')
+          echo "matrix=$json" >> "$GITHUB_OUTPUT"
+          echo "strategy matrix"
+          echo "$json"
           
   build:
-    needs: check-version
+    needs: [check-version, create_strategy]
     if: needs.check-version.outputs.has_new == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -326,7 +337,7 @@ jobs:
           echo "❌ Local and remote vermagics are not equal"
           echo "equal=false" >> "$GITHUB_OUTPUT"
         fi
-
+    
     - name: Prepare release artifacts
       if: success()
       run: |
@@ -357,3 +368,36 @@ jobs:
         draft: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  release:
+    needs: [check-version, build]
+    if: needs.check-version.outputs.has_new == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download
+        uses: actions/download-artifact@v4
+        with:
+          path: release
+
+      - name: Update version
+        run: |
+          echo "${{ needs.check-version.outputs.latest_tag }}" > $VERSION_FILE
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add $VERSION_FILE
+          git commit -m "New release ${{ needs.check-version.outputs.latest_tag }}" || true
+          git push || true
+
+      #- name: Release
+      #  uses: softprops/action-gh-release@v1
+      #  with:
+      #    tag_name: openwrt-${{ needs.check-version.outputs.latest_tag }}-${{ github.run_number }}
+      #    name: OpenWrt ${{ needs.check-version.outputs.latest_tag }}
+      #    body: Automated build with extended UBI
+      #    files: artifacts/**/*
+      #    draft: false
+      #  env:
+      #    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
