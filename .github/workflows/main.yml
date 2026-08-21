@@ -46,7 +46,7 @@ jobs:
           #exit 1
         fi
 
-        echo "✅ Remote vermagic hash: ${remote_hash}"
+        echo "✅ ${GREEN}Remote vermagic hash: ${remote_hash}${RESET}"
 
     - name: Maximize build space
       uses: easimon/maximize-build-space@v10
