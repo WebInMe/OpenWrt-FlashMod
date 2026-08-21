@@ -71,44 +71,50 @@ jobs:
       - id: set-matrix
         run: |
           set -euo pipefail
-
+      
           items=()
 
           cd DEVICES
-          # Scan all ax* folders (adjust pattern if needed)
+      
           for d in */; do
-            d=${d%/}  # remove trailing slash
-
-            # Only consider device folders matching ax*
-            # [[ "$d" == AX* ]] || continue
-
-            # Find all .patch files in this folder
+            d=${d%/}
+            [ -d "$d" ] || continue
+      
+            # Optional name filter, e.g.:
+            # [[ "$d" == *ax* ]] || continue
+      
+            # Device MUST have default.config to be included
+            if [ ! -f "$d/default.config" ]; then
+              echo "⚠️  No default.config in $d – skipping device"
+              continue
+            fi
+      
             patch_files=()
             for p in "$d"/*.patch; do
               [ -f "$p" ] || continue
               patch_files+=("$p")
             done
-
-            # If no patch files, skip this folder entirely
+      
             if [ "${#patch_files[@]}" -eq 0 ]; then
-              echo "⚠️  No .patch files in $d – skipping"
-              continue
+              # No patches, but config exists → add device without patch
+              echo "✅ Adding device without patch: $d"
+              items+=("{\"device\":\"$d\",\"patch\":null,\"config\":\"default.config\"}")
+            else
+              # One or more patches → add one entry per patch
+              for p in "${patch_files[@]}"; do
+                patch_name=$(basename "$p" .patch)
+                echo "✅ Adding: device=$d patch=$patch_name"
+                items+=("{\"device\":\"$d\",\"patch\":\"$patch_name\",\"config\":\"default.config\"}")
+              done
             fi
-
-            # Create one matrix entry per patch file
-            for p in "${patch_files[@]}"; do
-              patch_name=$(basename "$p" .patch)  # e.g. 256mb
-              items+=("{\"device\":\"$d\",\"patch\":\"$patch_name\"}")
-            done
           done
-
-          # If nothing found, still output a valid (empty) matrix
+      
           if [ "${#items[@]}" -eq 0 ]; then
-            echo "⚠️  No device/patch combinations found"
+            echo "⚠️  No device combinations found"
             echo "matrix=[]" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-
+      
           json=$(printf '%s\n' "${items[@]}" | jq -s -c '.')
           echo "matrix=$json" >> "$GITHUB_OUTPUT"
           echo "Final strategy matrix:"
@@ -118,12 +124,20 @@ jobs:
     needs: [check-version, create_strategy]
     if: needs.check-version.outputs.has_new == 'true'
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include: ${{ fromJson(needs.create_strategy.outputs.matrix) }}
+      fail-fast: false
     permissions:
       contents: write        # Необходимо для создания Release
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
+
+    - name: Show build variant
+      run: |
+        echo "Device: ${{ matrix.device }}"
+        echo "Patch:  ${{ matrix.patch }}"
 
     - name: Maximize build space
       uses: easimon/maximize-build-space@v10
