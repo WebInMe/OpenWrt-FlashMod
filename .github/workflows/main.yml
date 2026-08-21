@@ -75,11 +75,11 @@ jobs:
           items=()
 
           # Scan all ax* folders (adjust pattern if needed)
-          for d in */; do
+          for d in DEVICES/*/; do
             d=${d%/}  # remove trailing slash
 
             # Only consider device folders matching ax*
-            [[ "$d" == AX* ]] || continue
+            # [[ "$d" == AX* ]] || continue
 
             # Find all .patch files in this folder
             patch_files=()
