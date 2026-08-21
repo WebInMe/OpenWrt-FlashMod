@@ -15,6 +15,39 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Show remote vermagic
+      run: |
+        set -euo pipefail
+
+        RED='\033[0;31m'
+        GREEN='\033[0;32m'
+        RESET='\033[0m'
+
+        # --- Get remote vermagic from manifest ---
+        manifest_url="https://downloads.openwrt.org/releases/25.12.5/targets/mediatek/filogic/openwrt-25.12.5-mediatek-filogic.manifest"
+        echo "📥 Fetching manifest: ${manifest_url}"
+
+        manifest_content=$(curl -sSf "$manifest_url") || {
+          echo "${RED}❌ Не удалось получить манифест с ${manifest_url}${RESET}"
+          #exit 1
+        }
+
+        remote_vermagic_line=$(echo "$manifest_content" | grep '^kernel -' | head -n1)
+        if [ -z "$remote_vermagic_line" ]; then
+          echo "${RED}❌ В манифесте не найдена строка 'kernel -'${RESET}"
+          #exit 1
+        fi
+
+        remote_vermagic_full=$(echo "$remote_vermagic_line" | awk '{print $3}')
+        remote_hash=$(echo "$remote_vermagic_full" | grep -oP '[a-f0-9]{32}' | tr -d '[:space:]')
+
+        if [ -z "$remote_hash" ]; then
+          echo "${RED}❌ Не удалось извлечь 32-символьный хеш из: ${remote_vermagic_full}${RESET}"
+          #exit 1
+        fi
+
+        echo "✅ Remote vermagic hash: ${remote_hash}"
+
     - name: Maximize build space
       uses: easimon/maximize-build-space@v10
       with:
@@ -201,7 +234,6 @@ jobs:
           make defconfig
         fi
         
-        
         # Показываем финальную конфигурацию
         echo "📋 Final configuration:"
         cat $CONFIG_FILE | grep -E "CONFIG_TARGET|CONFIG_DEVEL" || true
@@ -210,16 +242,111 @@ jobs:
       run: |
         cat openwrt/.config 
 
+    - name: Show remote vermagic
+      run: |
+        set -euo pipefail
+
+        RED='\033[0;31m'
+        GREEN='\033[0;32m'
+        RESET='\033[0m'
+
+        # --- Get remote vermagic from manifest ---
+        manifest_url="https://downloads.openwrt.org/releases/${{ steps.get_latest.outputs.version }}/targets/mediatek/filogic/openwrt-${{ steps.get_latest.outputs.version }}-mediatek-filogic.manifest"
+        echo "📥 Fetching manifest: ${manifest_url}"
+
+        manifest_content=$(curl -sSf "$manifest_url") || {
+          echo "${RED}❌ Не удалось получить манифест с ${manifest_url}${RESET}"
+          #exit 1
+        }
+
+        remote_vermagic_line=$(echo "$manifest_content" | grep '^kernel -' | head -n1)
+        if [ -z "$remote_vermagic_line" ]; then
+          echo "${RED}❌ В манифесте не найдена строка 'kernel -'${RESET}"
+          #exit 1
+        fi
+
+        remote_vermagic_full=$(echo "$remote_vermagic_line" | awk '{print $3}')
+        remote_hash=$(echo "$remote_vermagic_full" | grep -oP '[a-f0-9]{32}' | tr -d '[:space:]')
+
+        if [ -z "$remote_hash" ]; then
+          echo "${RED}❌ Не удалось извлечь 32-символьный хеш из: ${remote_vermagic_full}${RESET}"
+          #exit 1
+        fi
+
+        echo "✅ Remote vermagic hash: ${remote_hash}"
+
     - name: Build firmware
       run: |
         cd openwrt
         make -j$(nproc) download
         make -j$(nproc) V=s
 
-    - name: Show vermagic
+    - name: Show local vermagic
       run: |
         cd openwrt
         find build_dir/ -name ".vermagic" -exec cat {} + 2>/dev/null | tr -d '[:space:]'
+
+    - name: Compare local and remote vermagic
+      run: |
+        set -euo pipefail
+
+        RED='\033[0;31m'
+        GREEN='\033[0;32m'
+        RESET='\033[0m'
+
+        # --- Get remote vermagic from manifest ---
+        manifest_url="https://downloads.openwrt.org/releases/${{ steps.get_latest.outputs.version }}/targets/mediatek/filogic/openwrt-${{ steps.get_latest.outputs.version }}-mediatek-filogic.manifest"
+        echo "📥 Fetching manifest: ${manifest_url}"
+
+        manifest_content=$(curl -sSf "$manifest_url") || {
+          echo "${RED}❌ Не удалось получить манифест с ${manifest_url}${RESET}"
+          #exit 1
+        }
+
+        remote_vermagic_line=$(echo "$manifest_content" | grep '^kernel -' | head -n1)
+        if [ -z "$remote_vermagic_line" ]; then
+          echo "${RED}❌ В манифесте не найдена строка 'kernel -'${RESET}"
+          #exit 1
+        fi
+
+        remote_vermagic_full=$(echo "$remote_vermagic_line" | awk '{print $3}')
+        remote_hash=$(echo "$remote_vermagic_full" | grep -oP '[a-f0-9]{32}' | tr -d '[:space:]')
+
+        if [ -z "$remote_hash" ]; then
+          echo "${RED}❌ Не удалось извлечь 32-символьный хеш из: ${remote_vermagic_full}${RESET}"
+          #exit 1
+        fi
+
+        echo "✅ Remote vermagic hash: ${remote_hash}"
+
+        # --- Get local vermagic from build_dir ---
+        OPENWRT_ROOT="$GITHUB_WORKSPACE/openwrt"
+        cd "$OPENWRT_ROOT"
+
+        local_vermagic_file=$(find build_dir/ -name ".vermagic" 2>/dev/null | head -n1)
+        if [ -z "$local_vermagic_file" ]; then
+          echo "${RED}❌ .vermagic файл не найден в build_dir${RESET}"
+          #exit 1
+        fi
+
+        local_hash=$(cat "$local_vermagic_file" 2>/dev/null | tr -d '[:space:]')
+        if [ -z "$local_hash" ]; then
+          echo "${RED}❌ Не удалось прочитать .vermagic из: ${local_vermagic_file}${RESET}"
+          #exit 1
+        fi
+
+        echo "✅ Local vermagic hash:  ${local_hash}"
+
+        # --- Compare ---
+        if [ "$local_hash" = "$remote_hash" ]; then
+          echo "${GREEN}✨ Vermagic совпадает: ${local_hash}${RESET}"
+        else
+          echo "${RED}❌ Vermagic не совпадает!${RESET}"
+          echo "  Remote: ${remote_hash}"
+          echo "  Local : ${local_hash}"
+          echo "${RED}   Это значит, что ваши kmod-пакеты могут не установиться на официальный образ.${RESET}"
+          #exit 1
+        fi
 
     - name: Prepare release artifacts
       if: success()
@@ -247,6 +374,7 @@ jobs:
           openwrt/release/*.bin
           openwrt/release/*.itb
           openwrt/release/*.img
+          openwrt/release/*.ubi
         draft: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
