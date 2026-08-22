@@ -240,7 +240,7 @@ jobs:
         if [ -n "$PATCH" ] && [ "$PATCH" != "null" ]; then
           PATCH_FILE="${GITHUB_WORKSPACE}/DEVICES/${DEVICE}/${PATCH}.patch"
           echo "✅ Applying patch: $PATCH_FILE"
-          git apply "$PATCH_FILE" || true
+          git apply "$PATCH_FILE" --allow-empty || true
         else
           echo "⚠️ No patch for this device – skipping patch step"
         fi
