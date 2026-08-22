@@ -43,30 +43,6 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Current version is $VERSION"
 
-      - name: Debug workspace and DEVICES folder
-        run: |
-          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
-          echo "Current dir: $(pwd)"
-
-          echo "Upper twice Top-level contents:"
-          ls -la ../../
-        
-          echo "Upper Top-level contents:"
-          ls -la ../
-        
-          echo "Top-level contents:"
-          ls -la
-    
-          if [ -d "DEVICES" ]; then
-            echo "DEVICES folder exists:"
-            ls -la DEVICES
-          else
-            echo "DEVICES folder does NOT exist at repo root"
-          fi
-    
-          echo "All default.config files in repo:"
-          find . -name "default.config" || true
-
       - name: Check version
         id: check
         run: |
@@ -96,30 +72,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Debug workspace and DEVICES folder
-        run: |
-          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
-          echo "Current dir: $(pwd)"
-
-          echo "Upper twice Top-level contents:"
-          ls -la ../../
-        
-          echo "Upper Top-level contents:"
-          ls -la ../
-        
-          echo "Top-level contents:"
-          ls -la
-    
-          if [ -d "DEVICES" ]; then
-            echo "DEVICES folder exists:"
-            ls -la DEVICES
-          else
-            echo "DEVICES folder does NOT exist at repo root"
-          fi
-    
-          echo "All default.config files in repo:"
-          find . -name "default.config" || true
         
       - id: set-matrix
         run: |
@@ -185,31 +137,6 @@ jobs:
       contents: write        # Необходимо для создания Release
 
     steps:
-    - uses: actions/checkout@v4
-
-    - name: Debug workspace and DEVICES folder
-      run: |
-        echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
-        echo "Current dir: $(pwd)"
-
-        echo "Upper twice Top-level contents:"
-        ls -la ../../
-        
-        echo "Upper Top-level contents:"
-        ls -la ../
-        
-        echo "Top-level contents:"
-        ls -la
-    
-        if [ -d "DEVICES" ]; then
-          echo "DEVICES folder exists:"
-          ls -la DEVICES
-        else
-          echo "DEVICES folder does NOT exist at repo root"
-        fi
-    
-        echo "All default.config files in repo:"
-        find . -name "default.config" || true
 
     - name: Show build variant
       run: |
@@ -228,17 +155,12 @@ jobs:
         remove-codeql: 'true'
         remove-docker-images: 'true'
 
+    - uses: actions/checkout@v4
     
     - name: Debug workspace and DEVICES folder
       run: |
         echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
         echo "Current dir: $(pwd)"
-
-        echo "Upper twice Top-level contents:"
-        ls -la ../../
-        
-        echo "Upper Top-level contents:"
-        ls -la ../
         
         echo "Top-level contents:"
         ls -la
@@ -273,31 +195,6 @@ jobs:
         sudo apt clean
         sudo apt autoclean
         df -h
-
-    
-    - name: Debug workspace and DEVICES folder
-      run: |
-        echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
-        echo "Current dir: $(pwd)"
-
-        echo "Upper twice Top-level contents:"
-        ls -la ../../
-        
-        echo "Upper Top-level contents:"
-        ls -la ../
-        
-        echo "Top-level contents:"
-        ls -la
-    
-        if [ -d "DEVICES" ]; then
-          echo "DEVICES folder exists:"
-          ls -la DEVICES
-        else
-          echo "DEVICES folder does NOT exist at repo root"
-        fi
-    
-        echo "All default.config files in repo:"
-        find . -name "default.config" || true
         
     - name: Remove and disable snap
       run: |
@@ -308,31 +205,6 @@ jobs:
         sudo rm -rf /var/lib/snapd
         sudo rm -rf /snap
         df -h
-
-    
-    - name: Debug workspace and DEVICES folder
-      run: |
-        echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
-        echo "Current dir: $(pwd)"
-
-        echo "Upper twice Top-level contents:"
-        ls -la ../../
-        
-        echo "Upper Top-level contents:"
-        ls -la ../
-        
-        echo "Top-level contents:"
-        ls -la
-    
-        if [ -d "DEVICES" ]; then
-          echo "DEVICES folder exists:"
-          ls -la DEVICES
-        else
-          echo "DEVICES folder does NOT exist at repo root"
-        fi
-    
-        echo "All default.config files in repo:"
-        find . -name "default.config" || true
 
     - name: Install build dependencies
       run: |
@@ -351,30 +223,6 @@ jobs:
         cd openwrt
         ./scripts/feeds update -a
         ./scripts/feeds install -a
-
-    - name: Debug workspace and DEVICES folder
-      run: |
-        echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
-        echo "Current dir: $(pwd)"
-
-        echo "Upper twice Top-level contents:"
-        ls -la ../../
-        
-        echo "Upper Top-level contents:"
-        ls -la ../
-        
-        echo "Top-level contents:"
-        ls -la
-    
-        if [ -d "DEVICES" ]; then
-          echo "DEVICES folder exists:"
-          ls -la DEVICES
-        else
-          echo "DEVICES folder does NOT exist at repo root"
-        fi
-    
-        echo "All default.config files in repo:"
-        find . -name "default.config" || true
 
     - name: Configure firmware for strategy
       run: |
