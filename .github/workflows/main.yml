@@ -205,6 +205,24 @@ jobs:
         ./scripts/feeds update -a
         ./scripts/feeds install -a
 
+    - name: Debug workspace and DEVICES folder
+      run: |
+        echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+        echo "Current dir: $(pwd)"
+    
+        echo "Top-level contents:"
+        ls -la
+    
+        if [ -d "DEVICES" ]; then
+          echo "DEVICES folder exists:"
+          ls -la DEVICES
+        else
+          echo "DEVICES folder does NOT exist at repo root"
+        fi
+    
+        echo "All default.config files in repo:"
+        find . -name "default.config" || true
+
     - name: Configure firmware for strategy
       run: |
         DEVICE="${{ matrix.device }}"
@@ -214,14 +232,14 @@ jobs:
         CONFIG_PATH="DEVICES/${DEVICE}/${CONFIG_NAME}"
 
         echo "Using config: $CONFIG_PATH"
-        cp "$GITHUB_WORKSPACE/$CONFIG_PATH" "$GITHUB_WORKSPACE/openwrt/.config"
+        cp "$CONFIG_PATH" "openwrt/.config"
 
         cd openwrt
 
         if [ -n "$PATCH" ] && [ "$PATCH" != "null" ]; then
           PATCH_FILE="DEVICES/${DEVICE}/${PATCH}.patch"
           echo "✅ Applying patch: $PATCH_FILE"
-          git apply "$GITHUB_WORKSPACE/$PATCH_FILE" || true
+          git apply "$PATCH_FILE" || true
         else
           echo "⚠️ No patch for this device – skipping patch step"
         fi
