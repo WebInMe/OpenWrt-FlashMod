@@ -64,8 +64,8 @@ jobs:
           fi
 
   create_strategy:
-    #needs: check-version
-    #if: needs.check-version.outputs.has_new == 'true'
+    needs: check-version
+    if: needs.check-version.outputs.has_new == 'true'
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
