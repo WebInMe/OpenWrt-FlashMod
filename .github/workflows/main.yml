@@ -267,6 +267,31 @@ jobs:
           gcc-multilib g++-multilib gettext git libncurses5-dev libssl-dev \
           python3-setuptools rsync swig unzip zlib1g-dev file wget
 
+    
+    - name: Debug workspace and DEVICES folder
+      run: |
+        echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+        echo "Current dir: $(pwd)"
+
+        echo "Upper twice Top-level contents:"
+        ls -la ../../
+        
+        echo "Upper Top-level contents:"
+        ls -la ../
+        
+        echo "Top-level contents:"
+        ls -la
+    
+        if [ -d "DEVICES" ]; then
+          echo "DEVICES folder exists:"
+          ls -la DEVICES
+        else
+          echo "DEVICES folder does NOT exist at repo root"
+        fi
+    
+        echo "All default.config files in repo:"
+        find . -name "default.config" || true
+
     - name: Clone OpenWrt source code by tag
       run: |
         git clone --depth 1 --branch ${{ needs.check-version.outputs.latest_tag }} https://github.com/openwrt/openwrt openwrt
