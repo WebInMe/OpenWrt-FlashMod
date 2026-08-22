@@ -97,6 +97,13 @@ jobs:
             patch_files=()
             for p in "$d"/*.patch; do
               [ -f "$p" ] || continue
+
+              # Skip empty patch files
+              if [ ! -s "$p" ]; then
+                echo "⚠️  Patch file is empty: $p – skipping"
+                continue
+              fi
+        
               patch_files+=("$p")
             done
       
