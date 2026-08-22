@@ -209,7 +209,13 @@ jobs:
       run: |
         echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
         echo "Current dir: $(pwd)"
-    
+
+        echo "Upper twice Top-level contents:"
+        ls -la ../../
+        
+        echo "Upper Top-level contents:"
+        ls -la ../
+        
         echo "Top-level contents:"
         ls -la
     
