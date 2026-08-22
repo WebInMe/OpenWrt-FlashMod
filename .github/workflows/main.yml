@@ -98,9 +98,12 @@ jobs:
             for p in "$d"/*.patch; do
               [ -f "$p" ] || continue
 
-              # Skip empty patch files
-              if [ ! -s "$p" ]; then
-                echo "⚠️  Patch file is empty: $p – skipping"
+              # Get file size in bytes
+              size=$(wc -c < "$p" | tr -d '[:space:]')
+      
+              # Skip if size <= 2 bytes
+              if [ "$size" -le 2 ]; then
+                echo "⚠️  Patch file too small (${size} bytes): $p – skipping"
                 continue
               fi
         
