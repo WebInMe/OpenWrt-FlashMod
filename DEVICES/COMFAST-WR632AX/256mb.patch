@@ -1,0 +1,11 @@
+diff --git a/target/linux/mediatek/dts/mt7981b-comfast-cf-wr632ax.dts b/target/linux/mediatek/dts/mt7981b-comfast-cf-wr632ax.dts
+index f3b4299d25..eec0e35e9b 100644
+--- a/target/linux/mediatek/dts/mt7981b-comfast-cf-wr632ax.dts
++++ b/target/linux/mediatek/dts/mt7981b-comfast-cf-wr632ax.dts
+@@ -14,5 +14,5 @@
+ };
+ 
+ &ubi {
+-	reg = <0x580000 0x4000000>;
++	reg = <0x580000 0xE5C0000>;
+ };
