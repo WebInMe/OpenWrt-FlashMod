@@ -143,16 +143,23 @@ jobs:
       matrix:
         include: ${{ fromJson(needs.create_strategy.outputs.matrix) }}
       fail-fast: false
+    outputs:
+      device: ${{ steps.build-variant.outputs.device }}
+      patch: ${{ steps.build-variant.outputs.patch }}
     permissions:
       contents: write        # Необходимо для создания Release
 
     steps:
 
     - name: Show build variant
+      id: build-variant
       run: |
         echo "Device: ${{ matrix.device }}"
         echo "Patch:  ${{ matrix.patch }}"
         echo "Config: ${{ matrix.config }}"
+
+        echo "device=${{ matrix.device }}" >> "$GITHUB_OUTPUT"
+        echo "patch=${{ matrix.patch }}" >> "$GITHUB_OUTPUT"
 
     - name: Maximize build space
       uses: easimon/maximize-build-space@v10
@@ -315,15 +322,55 @@ jobs:
         ls -la openwrt/bin/targets/
     
         find . -name ".config" || true
+
+    - name: Detect device from .config
+      id: detect-device
+      run: |
+        set -euo pipefail
+    
+        CONFIG_FILE="openwrt/.config"  # adjust if your .config is elsewhere
+    
+        device=""
+    
+        while IFS= read -r line; do
+          # Skip empty lines
+          [ -z "$line" ] && continue
+    
+          # Skip comments (lines starting with #)
+          [[ "$line" == \#* ]] && continue
+    
+          # Skip lines containing "is not set"
+          [[ "$line" == *"is not set"* ]] && continue
+    
+          # Skip lines ending with =n
+          [[ "$line" == *=n ]] && continue
+    
+          # Match lines like:
+          # CONFIG_TARGET_mediatek_filogic_DEVICE_xiaomi_redmi-router-ax6000-stock=y
+          # CONFIG_TARGET_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t=y
+          if [[ "$line" =~ ^CONFIG_TARGET.*_DEVICE_([^=]+)=y$ ]]; then
+            device="${BASH_REMATCH[1]}"
+            break
+          fi
+        done < "$CONFIG_FILE"
+    
+        if [ -z "$device" ]; then
+          echo "⚠️  No device found in $CONFIG_FILE"
+          echo "Saving unmatched CONFIG_TARGET..._DEVICE_ lines for debugging:"
+          grep -E '^CONFIG_TARGET.*_DEVICE_' "$CONFIG_FILE" > unmatched_device_lines.txt || true
+          echo "::warning::No device detected. See unmatched_device_lines.txt in artifacts."
+          echo "device=" >> "$GITHUB_OUTPUT"
+          exit 1
+        fi
+    
+        echo "✅ Detected device: $device"
+        echo "device=$device" >> "$GITHUB_OUTPUT"
     
     - name: Prepare
       if: success()
       run: |
+        DEVICE_ID="${{ steps.detect-device.outputs.device }}"
         cd openwrt
-        DEVICE_ID=$(grep -E '^CONFIG_TARGET.*_DEVICE_=' .config | \
-            sed -E 's/^CONFIG_TARGET.*_DEVICE_([^=]+)=y$/\1/' | \
-            head -n1)
-        echo "Current device is ${DEVICE_ID}"
         
         mkdir -p release
         echo "🔍 Searching for files matching: *${DEVICE_ID}*"
@@ -377,8 +424,8 @@ jobs:
       - name: Set release tag
         id: release_tag
         run: |
-          echo "tag=openwrt-${{ needs.check-version.outputs.latest_tag }}-${{ matrix.device }}-${{ matrix.patch }}-$(date +%Y%m%d-%H%M%S)" >> "$GITHUB_OUTPUT"
-          echo "Release tag: openwrt-${{ needs.check-version.outputs.latest_tag }}-${{ matrix.device }}-${{ matrix.patch }}-$(date +%Y%m%d-%H%M%S)"
+          echo "tag=openwrt-${{ needs.check-version.outputs.latest_tag }}-${{ needs.build.outputs.device }}-${{ needs.build.outputs.patch }}-$(date +%Y%m%d-%H%M%S)" >> "$GITHUB_OUTPUT"
+          echo "Release tag: openwrt-${{ needs.check-version.outputs.latest_tag }}-${{ needs.build.outputs.device }}-${{ needs.build.outputs.patch }}-$(date +%Y%m%d-%H%M%S)"
       
       - name: Create GitHub Release
         if: success()
@@ -388,10 +435,11 @@ jobs:
           name: "OpenWrt Firmware"
           body_path: "release/note.md"
           files: |
-            release/**/*.bin
-            release/**/*.itb
-            release/**/*.img
-            release/**/*.ubi
+            release/*.bin
+            release/*.itb
+            release/*.img
+            release/*.ubi
+            release/*.manifest
           draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
