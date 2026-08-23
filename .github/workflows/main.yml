@@ -57,7 +57,7 @@ jobs:
           LATEST="${{ steps.get_latest.outputs.latest_tag }}"
           if [ "$CURRENT" != "$LATEST" ] || [ "${{ github.event.inputs.force_build }}" = "true" ]; then
             echo "has_new=true" >> $GITHUB_OUTPUT
-            echo "New version released. Let's build new image!"
+            echo "Let's build new image!"
           else
             echo "has_new=false" >> $GITHUB_OUTPUT
             echo "New version not found. Nothing to build..."
@@ -398,6 +398,17 @@ jobs:
       with:
         name: ${{ matrix.device }}-${{ matrix.flash }}-${{ needs.check-version.outputs.latest_tag }}
         path: release/
+
+    - name: Debug workspace
+      run: |
+        echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+        echo "Current dir: $(pwd)"
+        
+        echo "Top-level contents:"
+        ls -la
+
+        echo "Release after upload contents:"
+        ls -la openwrt/release/
 
   release:
     needs: [check-version, build]
