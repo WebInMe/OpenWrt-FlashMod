@@ -1,0 +1,12 @@
+diff --git a/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts b/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts
+index d4b11cbe04..9bdcdb77e4 100644
+--- a/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts
++++ b/target/linux/mediatek/dts/mt7981b-xiaomi-mi-router-ax3000t.dts
+@@ -30,6 +30,6 @@
+ 	 */
+ 	partition@2800000 {
+ 		label = "ubi";
+-		reg = <0x2800000 0x4e00000>;
++		reg = <0x2800000 0x1d800000>;
+ 	};
+ };
