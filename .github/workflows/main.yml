@@ -412,7 +412,7 @@ jobs:
 
   release:
     needs: [check-version, build]
-    if: needs.check-version.outputs.has_new == 'true'
+    if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
