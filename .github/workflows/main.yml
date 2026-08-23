@@ -302,10 +302,24 @@ jobs:
           echo "❌ Local and remote vermagics are not equal"
           echo "equal=false" >> "$GITHUB_OUTPUT"
         fi
+
+    - name: Debug workspace
+      run: |
+        echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+        echo "Current dir: $(pwd)"
+        
+        echo "Top-level contents:"
+        ls -la
+
+        echo "Targets contents:"
+        ls -la openwrt/bin/targets/
+    
+        find . -name ".config" || true
     
     - name: Prepare
       if: success()
       run: |
+        cd openwrt
         DEVICE_ID=$(grep -E '^CONFIG_TARGET.*_DEVICE_=' .config | \
             sed -E 's/^CONFIG_TARGET.*_DEVICE_([^=]+)=y$/\1/' | \
             head -n1)
@@ -320,6 +334,17 @@ jobs:
     
         echo "## OpenWrt Firmware for ${{ matrix.device }} (${{ matrix.patch }})" > release/note.md
         echo "Build date: $(date)" >> release/note.md
+
+    - name: Debug workspace
+      run: |
+        echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+        echo "Current dir: $(pwd)"
+        
+        echo "Top-level contents:"
+        ls -la
+
+        echo "Release contents:"
+        ls -la openwrt/release/
 
     - name: Upload
       uses: actions/upload-artifact@v4
