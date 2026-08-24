@@ -390,12 +390,12 @@ jobs:
         DEVICE_ID="${{ steps.detect-device.outputs.device }}"
         mkdir -p release
         
-        #cd openwrt
+        cd openwrt
         echo "🔍 Searching for files matching: *${DEVICE_ID}*"
-        find opewrt/bin/targets/ -name "*${DEVICE_ID}*" -exec cp {} release/ \;
+        find bin/targets/ -name "*${DEVICE_ID}*" -exec cp {} ../release/ \;
 
         echo "✅ Files copied to release/"
-        ls -la release/ || true
+        ls -la ../release/ || true
     
         echo "## OpenWrt Firmware for ${{ matrix.device }} (${{ matrix.patch }})" > "release/${{ matrix.device }}-${{ matrix.patch }}-${{ needs.check-version.outputs.latest_tag }}-note.md"
         echo "Build date: $(date)" >> "release/${DEVICE_ID}-${{ matrix.patch }}-${{ needs.check-version.outputs.latest_tag }}-note.md"
