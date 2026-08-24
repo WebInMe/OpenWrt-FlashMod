@@ -338,8 +338,11 @@ jobs:
 
         echo "Targets contents:"
         ls -la openwrt/bin/targets/
+
+        echo "Targets contents:"
+        ls -la openwrt/bin/targets/mediatek
     
-        find . -name ".config" || true
+        find . -name "*.ubi" || true
 
     - name: Detect device from .config
       id: detect-device
@@ -384,7 +387,7 @@ jobs:
         echo "✅ Detected device: $device"
         echo "device=$device" >> "$GITHUB_OUTPUT"
     
-    - name: Prepare
+    - name: Copy firmware files
       if: success()
       run: |
         DEVICE_ID="${{ steps.detect-device.outputs.device }}"
@@ -393,12 +396,34 @@ jobs:
         cd openwrt
         echo "🔍 Searching for files matching: *${DEVICE_ID}*"
         find bin/targets/ -name "*${DEVICE_ID}*" -exec cp {} ../release/ \;
+        find . -type f -name '*.ubi' -exec cp {} ../release/ \;
 
         echo "✅ Files copied to release/"
         ls -la ../release/ || true
+
+    - name: Add firmware file table to release notes
+      run: |
+        set -euo pipefail
+
+        cd release
+        
+        echo "## OpenWrt ${{ needs.check-version.outputs.latest_tag }} Firmware for ${{ matrix.device }} (${{ matrix.patch }})" > "${{ matrix.device }}-${{ matrix.patch }}-report.md"
+        echo "" >> "${{ matrix.device }}-${{ matrix.patch }}-report.md"
+        
+        {
+          echo ""
+          echo "### Firmware files"
+          echo ""
+          echo "| File | Size |"
+          echo "|------|------|"
     
-        echo "## OpenWrt Firmware for ${{ matrix.device }} (${{ matrix.patch }})" > "../release/${{ matrix.device }}-${{ matrix.patch }}-${{ needs.check-version.outputs.latest_tag }}-note.md"
-        echo "Build date: $(date)" >> "../release/${DEVICE_ID}-${{ matrix.patch }}-${{ needs.check-version.outputs.latest_tag }}-note.md"
+          for f in *.bin *.itb *.ubi *.img *.manifest; do
+            [ -f "$f" ] || continue
+            name=$(basename "$f")
+            size=$(stat -c%s "$f" 2>/dev/null || stat -f%z "$f" 2>/dev/null || echo "?")
+            echo "| \`${name}\` | ${size} bytes |"
+          done
+        } >>  "${{ matrix.device }}-${{ matrix.patch }}-report.md"
 
     - name: Debug workspace
       run: |
@@ -452,7 +477,6 @@ jobs:
         with:
           path: release
 
-
       - name: Debug workspace
         run: |
           echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
@@ -472,6 +496,31 @@ jobs:
           git add $VERSION_FILE
           git commit -m "New release ${{ needs.check-version.outputs.latest_tag }}" || true
           git push || true
+
+      - name: Aggregate statuses into release/note.md
+        run: |
+          set -euo pipefail
+
+          cat > release/note.md << 'HEADER'
+          ## OpenWrt Firmware Build Report
+
+          HEADER
+
+          echo "Build date: $(date -u)" >> release/note.md
+          echo "" >> release/note.md
+          echo "### Build results" >> release/note.md
+          echo "" >> release/note.md
+
+          # Merge all status files in a stable order
+          for f in $(find release -name '*-report.md' | sort); do
+            cat "$f" >> release/note.md
+            echo "" >> release/note.md
+          done
+
+          # Optionally list firmware files if you also upload them as artifacts
+          # echo "### Firmware files" >> release/note.md
+          # echo "" >> release/note.md
+          # echo "- Firmware binaries are attached as release assets." >> release/note.md
 
       - name: Set release tag
         id: release_tag
