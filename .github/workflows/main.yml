@@ -374,13 +374,13 @@ jobs:
         
         #cd openwrt
         echo "🔍 Searching for files matching: *${DEVICE_ID}*"
-        find bin/targets/ -name "*${DEVICE_ID}*" -exec cp {} release/ \;
+        find opewrt/bin/targets/ -name "*${DEVICE_ID}*" -exec cp {} release/ \;
 
         echo "✅ Files copied to release/"
         ls -la release/ || true
     
-        echo "## OpenWrt Firmware for ${{ matrix.device }} (${{ matrix.patch }})" > "release/${{ matrix.device }}-${{ matrix.flash }}-${{ needs.check-version.outputs.latest_tag }}-note.md"
-        echo "Build date: $(date)" >> "release/${DEVICE_ID}-${{ matrix.flash }}-${{ needs.check-version.outputs.latest_tag }}-note.md"
+        echo "## OpenWrt Firmware for ${{ matrix.device }} (${{ matrix.patch }})" > "release/${{ matrix.device }}-${{ matrix.patch }}-${{ needs.check-version.outputs.latest_tag }}-note.md"
+        echo "Build date: $(date)" >> "release/${DEVICE_ID}-${{ matrix.patch }}-${{ needs.check-version.outputs.latest_tag }}-note.md"
 
     - name: Debug workspace
       run: |
