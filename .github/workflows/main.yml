@@ -370,17 +370,17 @@ jobs:
       if: success()
       run: |
         DEVICE_ID="${{ steps.detect-device.outputs.device }}"
-        cd openwrt
-        
         mkdir -p release
+        
+        #cd openwrt
         echo "🔍 Searching for files matching: *${DEVICE_ID}*"
         find bin/targets/ -name "*${DEVICE_ID}*" -exec cp {} release/ \;
 
         echo "✅ Files copied to release/"
         ls -la release/ || true
     
-        echo "## OpenWrt Firmware for ${{ matrix.device }} (${{ matrix.patch }})" > release/note.md
-        echo "Build date: $(date)" >> release/note.md
+        echo "## OpenWrt Firmware for ${{ matrix.device }} (${{ matrix.patch }})" > "release/${{ matrix.device }}-${{ matrix.flash }}-${{ needs.check-version.outputs.latest_tag }}-note.md"
+        echo "Build date: $(date)" >> "release/${DEVICE_ID}-${{ matrix.flash }}-${{ needs.check-version.outputs.latest_tag }}-note.md"
 
     - name: Debug workspace
       run: |
@@ -391,7 +391,7 @@ jobs:
         ls -la
 
         echo "Release contents:"
-        ls -la openwrt/release/
+        ls -la release/
 
     - name: Upload
       uses: actions/upload-artifact@v4
@@ -408,7 +408,7 @@ jobs:
         ls -la
 
         echo "Release after upload contents:"
-        ls -la openwrt/release/
+        ls -la release/
 
   release:
     needs: [check-version, build]
@@ -418,11 +418,34 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Debug workspace
+        run: |
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+          echo "Current dir: $(pwd)"
+          
+          echo "Top-level contents:"
+          ls -la
+  
+          echo "Release after upload contents:"
+          ls -la release/
+
       - name: Download
         uses: actions/download-artifact@v4
         with:
           path: release
 
+
+      - name: Debug workspace
+        run: |
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+          echo "Current dir: $(pwd)"
+          
+          echo "Top-level contents:"
+          ls -la
+  
+          echo "Release after download contents:"
+          ls -la release/
+          
       - name: Update version
         run: |
           echo "${{ needs.check-version.outputs.latest_tag }}" > $VERSION_FILE
@@ -435,8 +458,11 @@ jobs:
       - name: Set release tag
         id: release_tag
         run: |
-          echo "tag=openwrt-${{ needs.check-version.outputs.latest_tag }}-${{ needs.build.outputs.device }}-${{ needs.build.outputs.patch }}-$(date +%Y%m%d-%H%M%S)" >> "$GITHUB_OUTPUT"
-          echo "Release tag: openwrt-${{ needs.check-version.outputs.latest_tag }}-${{ needs.build.outputs.device }}-${{ needs.build.outputs.patch }}-$(date +%Y%m%d-%H%M%S)"
+          #echo "tag=openwrt-${{ needs.check-version.outputs.latest_tag }}-${{ needs.build.outputs.device }}-${{ needs.build.outputs.patch }}-$(date +%Y%m%d-%H%M%S)" >> "$GITHUB_OUTPUT"
+          #echo "Release tag: openwrt-${{ needs.check-version.outputs.latest_tag }}-${{ needs.build.outputs.device }}-${{ needs.build.outputs.patch }}-$(date +%Y%m%d-%H%M%S)"
+          echo "tag=openwrt-${{ needs.check-version.outputs.latest_tag }}-$(date +%Y%m%d-%H%M%S)" >> "$GITHUB_OUTPUT"
+          echo "Release tag: openwrt-${{ needs.check-version.outputs.latest_tag }}-$(date +%Y%m%d-%H%M%S)"
+      
       
       - name: Create GitHub Release
         if: success()
