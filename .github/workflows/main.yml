@@ -268,8 +268,39 @@ jobs:
         echo "📋 Final configuration:"
         cat $CONFIG_PATH
 
-    - name: Get remote vermagic
-      id: get_remote_vermagic
+    #- name: Get remote vermagic
+    #  id: get_remote_vermagic
+    #  run: |
+    #    manifest_url="https://downloads.openwrt.org/releases/${{ needs.check-version.outputs.version }}/targets/mediatek/filogic/openwrt-${{ needs.check-version.outputs.version }}-mediatek-filogic.manifest"
+    #    echo "📥 Fetching manifest: ${manifest_url}"
+
+    #    manifest_content=$(curl -sSf "$manifest_url") || {
+    #      echo "❌ Can't get manifest from ${manifest_url}"
+    #    }
+
+    #    remote_vermagic_line=$(echo "$manifest_content" | grep '^kernel -' | head -n1)
+    #    remote_vermagic_full=$(echo "$remote_vermagic_line" | awk '{print $3}')
+    #    remote_hash=$(echo "$remote_vermagic_full" | grep -oP '[a-f0-9]{32}' | tr -d '[:space:]')
+
+    #    echo "✅ Remote vermagic hash: ${remote_hash}"
+    #    echo "remote_hash=$remote_hash" >> "$GITHUB_OUTPUT"
+
+    - name: Build firmware
+      run: |
+        cd openwrt
+        make -j$(nproc) download
+        make -j$(nproc) V=s
+
+    #- name: Get local vermagic
+    #  id: get_local_vermagic
+    #  run: |
+    #    cd openwrt
+    #    local_hash=$(find build_dir/ -name ".vermagic" -exec cat {} + 2>/dev/null | tr -d '[:space:]')
+    #    echo "✨ Local vermagic hash:  ${local_hash}"
+    #    echo "local_hash=$local_hash" >> "$GITHUB_OUTPUT"
+
+    - name: Compare local and remote vermagics
+      id: compare_vermagic
       run: |
         manifest_url="https://downloads.openwrt.org/releases/${{ needs.check-version.outputs.version }}/targets/mediatek/filogic/openwrt-${{ needs.check-version.outputs.version }}-mediatek-filogic.manifest"
         echo "📥 Fetching manifest: ${manifest_url}"
@@ -283,26 +314,13 @@ jobs:
         remote_hash=$(echo "$remote_vermagic_full" | grep -oP '[a-f0-9]{32}' | tr -d '[:space:]')
 
         echo "✅ Remote vermagic hash: ${remote_hash}"
-        echo "remote_hash=$remote_hash" >> "$GITHUB_OUTPUT"
-
-    - name: Build firmware
-      run: |
-        cd openwrt
-        make -j$(nproc) download
-        make -j$(nproc) V=s
-
-    - name: Get local vermagic
-      id: get_local_vermagic
-      run: |
+      
         cd openwrt
         local_hash=$(find build_dir/ -name ".vermagic" -exec cat {} + 2>/dev/null | tr -d '[:space:]')
         echo "✨ Local vermagic hash:  ${local_hash}"
-        echo "local_hash=$local_hash" >> "$GITHUB_OUTPUT"
-
-    - name: Compare local and remote vermagics
-      id: compare_vermagic
-      run: |
-        if [ "${{ steps.get_local_vermagic.outputs.local_hash }}" = "${{ steps.get_remote_vermagic.outputs.remote_hash }}" ]; then
+        
+        # if [ "${{ steps.get_local_vermagic.outputs.local_hash }}" = "${{ steps.get_remote_vermagic.outputs.remote_hash }}" ]; then
+        if [ "${local_hash}" = "${remote_hash}" ]; then
           echo "✅ Local and remote vermagics are equal"
           echo "equal=true" >> "$GITHUB_OUTPUT"
         else
