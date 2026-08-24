@@ -397,7 +397,7 @@ jobs:
         echo "✅ Files copied to release/"
         ls -la ../release/ || true
     
-        echo "## OpenWrt Firmware for ${{ matrix.device }} (${{ matrix.patch }})" > "release/${{ matrix.device }}-${{ matrix.patch }}-${{ needs.check-version.outputs.latest_tag }}-note.md"
+        echo "## OpenWrt Firmware for ${{ matrix.device }} (${{ matrix.patch }})" > "../release/${{ matrix.device }}-${{ matrix.patch }}-${{ needs.check-version.outputs.latest_tag }}-note.md"
         echo "Build date: $(date)" >> "../release/${DEVICE_ID}-${{ matrix.patch }}-${{ needs.check-version.outputs.latest_tag }}-note.md"
 
     - name: Debug workspace
