@@ -483,6 +483,8 @@ jobs:
 
       - name: Debug workspace
         run: |
+          set -euo pipefail
+          
           echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
           echo "Current dir: $(pwd)"
           
@@ -517,6 +519,8 @@ jobs:
 
           # Merge all status files in a stable order
           for f in $(find release -name '*-report.md' | sort); do
+            echo "Read content of file: $f"
+            cat "$f"
             cat "$f" >> release/note.md
             echo "" >> release/note.md
           done
@@ -533,7 +537,6 @@ jobs:
           #echo "Release tag: openwrt-${{ needs.check-version.outputs.latest_tag }}-${{ needs.build.outputs.device }}-${{ needs.build.outputs.patch }}-$(date +%Y%m%d-%H%M%S)"
           echo "tag=openwrt-${{ needs.check-version.outputs.latest_tag }}-$(date +%Y%m%d-%H%M%S)" >> "$GITHUB_OUTPUT"
           echo "Release tag: openwrt-${{ needs.check-version.outputs.latest_tag }}-$(date +%Y%m%d-%H%M%S)"
-      
       
       - name: Create GitHub Release
         if: success()
