@@ -469,8 +469,8 @@ jobs:
           echo "Top-level contents:"
           ls -la
   
-          echo "Release after upload contents:"
-          ls -la release/
+          #echo "Release after upload contents:"
+          #ls -la release/ || true
 
       - name: Download
         uses: actions/download-artifact@v4
@@ -486,7 +486,7 @@ jobs:
           ls -la
   
           echo "Release after download contents:"
-          ls -la release/
+          ls -la release/ || true
           
       - name: Update version
         run: |
