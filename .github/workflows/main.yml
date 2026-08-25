@@ -9,11 +9,11 @@ on:
         default: false
         type: boolean
         
-      ignore_vermagic:
-        description: 'Ignore vermagic'
-        required: false
-        default: false
-        type: boolean
+      # ignore_vermagic:
+      #  description: 'Ignore vermagic'
+      #  required: false
+      #  default: false
+      #  type: boolean
           
   schedule:
     - cron: '0 0 * * 0'     # Опционально: автоматическая сборка каждое воскресенье в 00:00
@@ -562,11 +562,9 @@ jobs:
         if: success()
         uses: softprops/action-gh-release@v2
         with:
-          # tag_name: "${{ steps.release_tag.outputs.tag }}"
-          # name: "OpenWrt ${{ steps.release_tag.outputs.tag }}"
+          tag_name: "${{ steps.release_tag.outputs.tag }}"
+          name: "OpenWrt ${{ steps.release_tag.outputs.tag }}"
           
-          tag_name: "${{ needs.check-version.outputs.latest_tag }}"
-          name: "${{ needs.check-version.outputs.latest_tag }}"    
           body_path: "release/note.md"
           files: |
             release/*.bin
