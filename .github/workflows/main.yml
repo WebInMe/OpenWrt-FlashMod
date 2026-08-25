@@ -405,14 +405,32 @@ jobs:
     - name: Copy firmware files
       if: success()
       run: |
+        set -euo pipefail
+        
         DEVICE_ID="${{ steps.detect-device.outputs.device }}"
         mkdir -p release
         
         cd openwrt
         echo "🔍 Searching for files matching: *${DEVICE_ID}*"
-        find bin/targets/ -name "*${DEVICE_ID}*" -exec cp {} ../release/ \;
-        find . -type f -name '*.ubi' -exec cp {} ../release/ \;
+        #find bin/targets/ -name "*${DEVICE_ID}*" -exec cp {} ../release/ \;
+        #find . -type f -name '*.ubi' -exec cp {} ../release/ \;
+        #find . -type f -name "*${DEVICE_ID}*" -exec cp {} ../release/ \;
 
+        # Find matching files and copy with new name
+        find . -type f -name "*${DEVICE_ID}*" | while IFS= read -r f; do
+          base=$(basename "$f")
+          # Insert patch info before the last extension
+          # e.g. openwrt-...-xiaomi_mi-router-ax3000t-squashfs-factory.bin
+          #   -> openwrt-...-xiaomi_mi-router-ax3000t-256mb-squashfs-factory.bin
+          name_part="${base%.*}"   # remove last extension
+          ext_part="${base##*.}"   # last extension
+    
+          new_name="${name_part}${SUFFIX}.${ext_part}"
+    
+          echo "Copying: $f -> ../release/$new_name"
+          cp "$f" "../release/$new_name"
+        done
+        
         echo "✅ Files copied to release/"
         ls -la ../release/ || true
 
@@ -429,14 +447,15 @@ jobs:
           echo ""
           echo "### Firmware files"
           echo ""
-          echo "| File | Size |"
-          echo "|------|------|"
+          echo "| File | Size | SHA256 |"
+          echo "|------|------|--------|"
     
           for f in *.bin *.itb *.ubi *.img *.manifest; do
             [ -f "$f" ] || continue
             name=$(basename "$f")
             size=$(stat -c%s "$f" 2>/dev/null || stat -f%z "$f" 2>/dev/null || echo "?")
-            echo "| \`${name}\` | ${size} bytes |"
+            sha=$(sha256sum "$f" 2>/dev/null | awk '{print $1}' || echo "error")
+            echo "| \`${name}\` | ${size} bytes | \`${sha}\` |"
           done
         } >>  "${{ matrix.device }}-${{ matrix.patch }}-report.md"
 
@@ -454,7 +473,7 @@ jobs:
     - name: Upload
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ matrix.device }}-${{ matrix.flash }}-${{ needs.check-version.outputs.latest_tag }}
+        name: ${{ matrix.device }}-${{ matrix.patch }}-${{ needs.check-version.outputs.latest_tag }}
         path: release/
 
     - name: Debug workspace
