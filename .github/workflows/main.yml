@@ -552,8 +552,8 @@ jobs:
       - name: Set release tag
         id: release_tag
         run: |
-          #echo "tag=openwrt-${{ needs.check-version.outputs.latest_tag }}-${{ needs.build.outputs.device }}-${{ needs.build.outputs.patch }}-$(date +%Y%m%d-%H%M%S)" >> "$GITHUB_OUTPUT"
-          #echo "Release tag: openwrt-${{ needs.check-version.outputs.latest_tag }}-${{ needs.build.outputs.device }}-${{ needs.build.outputs.patch }}-$(date +%Y%m%d-%H%M%S)"
+          # echo "tag=openwrt-${{ needs.check-version.outputs.latest_tag }}-${{ needs.build.outputs.device }}-${{ needs.build.outputs.patch }}-$(date +%Y%m%d-%H%M%S)" >> "$GITHUB_OUTPUT"
+          # echo "Release tag: openwrt-${{ needs.check-version.outputs.latest_tag }}-${{ needs.build.outputs.device }}-${{ needs.build.outputs.patch }}-$(date +%Y%m%d-%H%M%S)"
           echo "tag=openwrt-${{ needs.check-version.outputs.latest_tag }}-$(date +%Y%m%d-%H%M%S)" >> "$GITHUB_OUTPUT"
           echo "Release tag: openwrt-${{ needs.check-version.outputs.latest_tag }}-$(date +%Y%m%d-%H%M%S)"
       
@@ -570,6 +570,11 @@ jobs:
             release/*.img
             release/*.ubi
             release/*.manifest
+            release/**/*.bin
+            release/**/*.itb
+            release/**/*.img
+            release/**/*.ubi
+            release/**/*.manifest
           draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
