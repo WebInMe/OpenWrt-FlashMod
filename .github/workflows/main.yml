@@ -39,7 +39,7 @@ jobs:
           
           # A pipeline where the middle command fails
           # echo "First Command" | unknown_command | echo "Second Command" | grep "Command" | awk "{print \$2}"
-          ls -la release/
+          ls -la release/ || true
           # Code to handle exit status of the pipeline
           if [ $? -ne 0 ]; then
               echo "If exit status is not 0, this line is printed."
