@@ -8,12 +8,6 @@ on:
         required: false
         default: false
         type: boolean
-        
-      # ignore_vermagic:
-      #  description: 'Ignore vermagic'
-      #  required: false
-      #  default: false
-      #  type: boolean
           
   schedule:
     - cron: '0 0 * * 0'     # Опционально: автоматическая сборка каждое воскресенье в 00:00
@@ -85,10 +79,6 @@ jobs:
             d=${d%/}
             [ -d "$d" ] || continue
       
-            # Optional name filter, e.g.:
-            # [[ "$d" == *ax* ]] || continue
-      
-            # Device MUST have default.config to be included
             if [ ! -f "$d/default.config" ]; then
               echo "⚠️  No default.config in $d – skipping device"
               continue
@@ -268,36 +258,11 @@ jobs:
         echo "📋 Final configuration:"
         cat $CONFIG_PATH
 
-    #- name: Get remote vermagic
-    #  id: get_remote_vermagic
-    #  run: |
-    #    manifest_url="https://downloads.openwrt.org/releases/${{ needs.check-version.outputs.version }}/targets/mediatek/filogic/openwrt-${{ needs.check-version.outputs.version }}-mediatek-filogic.manifest"
-    #    echo "📥 Fetching manifest: ${manifest_url}"
-
-    #    manifest_content=$(curl -sSf "$manifest_url") || {
-    #      echo "❌ Can't get manifest from ${manifest_url}"
-    #    }
-
-    #    remote_vermagic_line=$(echo "$manifest_content" | grep '^kernel -' | head -n1)
-    #    remote_vermagic_full=$(echo "$remote_vermagic_line" | awk '{print $3}')
-    #    remote_hash=$(echo "$remote_vermagic_full" | grep -oP '[a-f0-9]{32}' | tr -d '[:space:]')
-
-    #    echo "✅ Remote vermagic hash: ${remote_hash}"
-    #    echo "remote_hash=$remote_hash" >> "$GITHUB_OUTPUT"
-
     - name: Build firmware
       run: |
         cd openwrt
         make -j$(nproc) download
         make -j$(nproc) V=s
-
-    #- name: Get local vermagic
-    #  id: get_local_vermagic
-    #  run: |
-    #    cd openwrt
-    #    local_hash=$(find build_dir/ -name ".vermagic" -exec cat {} + 2>/dev/null | tr -d '[:space:]')
-    #    echo "✨ Local vermagic hash:  ${local_hash}"
-    #    echo "local_hash=$local_hash" >> "$GITHUB_OUTPUT"
 
     - name: Compare local and remote vermagics
       id: compare_vermagic
@@ -319,7 +284,6 @@ jobs:
         local_hash=$(find build_dir/ -name ".vermagic" -exec cat {} + 2>/dev/null | tr -d '[:space:]')
         echo "✨ Local vermagic hash:  ${local_hash}"
         
-        # if [ "${{ steps.get_local_vermagic.outputs.local_hash }}" = "${{ steps.get_remote_vermagic.outputs.remote_hash }}" ]; then
         if [ "${local_hash}" = "${remote_hash}" ]; then
           echo "✅ Local and remote vermagics are equal"
           echo "equal=true" >> "$GITHUB_OUTPUT"
@@ -397,9 +361,6 @@ jobs:
         
         cd openwrt
         echo "🔍 Searching for files matching: *${DEVICE_ID}*"
-        #find bin/targets/ -name "*${DEVICE_ID}*" -exec cp {} ../release/ \;
-        #find . -type f -name '*.ubi' -exec cp {} ../release/ \;
-        #find . -type f -name "*${DEVICE_ID}*" -exec cp {} ../release/ \;
 
         # Find matching files and copy with new name
         find . -type f -name "*${DEVICE_ID}*" | while IFS= read -r f; do
@@ -529,11 +490,6 @@ jobs:
             cat "$f" >> release/note.md
             echo "" >> release/note.md
           done
-
-          # Optionally list firmware files if you also upload them as artifacts
-          # echo "### Firmware files" >> release/note.md
-          # echo "" >> release/note.md
-          # echo "- Firmware binaries are attached as release assets." >> release/note.md
 
       - name: Set release tag
         id: release_tag
