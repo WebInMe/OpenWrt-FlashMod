@@ -461,17 +461,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Debug workspace
-        run: |
-          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
-          echo "Current dir: $(pwd)"
-          
-          echo "Top-level contents:"
-          ls -la
-  
-          #echo "Release after upload contents:"
-          #ls -la release/ || true
-
       - name: Download
         uses: actions/download-artifact@v4
         with:
