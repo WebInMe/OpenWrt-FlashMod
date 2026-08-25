@@ -440,7 +440,8 @@ jobs:
 
         cd release
         
-        echo "## OpenWrt ${{ needs.check-version.outputs.latest_tag }} Firmware for ${{ matrix.device }} (${{ matrix.patch }})" > "${{ matrix.device }}-${{ matrix.patch }}-report.md"
+        # echo "## OpenWrt ${{ needs.check-version.outputs.latest_tag }} Firmware for ${{ matrix.device }} (${{ matrix.patch }})" > "${{ matrix.device }}-${{ matrix.patch }}-report.md"
+        echo "## ${{ matrix.device }} (${{ matrix.patch }})" > "${{ matrix.device }}-${{ matrix.patch }}-report.md"
         echo "" >> "${{ matrix.device }}-${{ matrix.patch }}-report.md"
         
         {
@@ -527,14 +528,14 @@ jobs:
           set -euo pipefail
 
           cat > release/note.md << 'HEADER'
-          ## OpenWrt Firmware Build Report
+          ## Automatically built OpenWrt firmware for hard-modded routers with custom flash size
 
           HEADER
 
           echo "Build date: $(date -u)" >> release/note.md
           echo "" >> release/note.md
-          echo "### Build results" >> release/note.md
-          echo "" >> release/note.md
+          # echo "### Build results" >> release/note.md
+          # echo "" >> release/note.md
 
           # Merge all status files in a stable order
           for f in $(find release -name '*-report.md' | sort); do
@@ -561,8 +562,11 @@ jobs:
         if: success()
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: "${{ steps.release_tag.outputs.tag }}"
-          name: "OpenWrt Firmware"
+          # tag_name: "${{ steps.release_tag.outputs.tag }}"
+          # name: "OpenWrt ${{ steps.release_tag.outputs.tag }}"
+          
+          tag_name: "${{ needs.check-version.outputs.latest_tag }}"
+          name: "${{ needs.check-version.outputs.latest_tag }}"    
           body_path: "release/note.md"
           files: |
             release/*.bin
