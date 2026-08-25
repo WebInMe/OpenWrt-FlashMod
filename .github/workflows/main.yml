@@ -32,6 +32,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Failed check
+        run: |
+          set -euo pipefail
+          echo "Test Case 4: Middle Command in Pipeline Fails with set -o pipefail"
+          
+          # A pipeline where the middle command fails
+          echo "First Command" | unknown_command | echo "Second Command" | grep "Command" | awk "{print \$2}"
+          
+          # Code to handle exit status of the pipeline
+          if [ $? -ne 0 ]; then
+              echo "If exit status is not 0, this line is printed."
+          fi
+          
+          echo "This line is executed even after a pipeline failure."
+
       - name: Get latest tag
         id: get_latest
         run: |
