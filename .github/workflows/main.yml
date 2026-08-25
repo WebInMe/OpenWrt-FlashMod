@@ -399,8 +399,8 @@ jobs:
         echo "" >> "${{ matrix.device }}-${{ matrix.patch }}-report.md"
         
         {
-          echo ""
-          echo "### Firmware files"
+          # echo ""
+          # echo "### Firmware files"
           echo ""
           echo "| File | Size | SHA256 |"
           echo "|------|------|--------|"
@@ -512,7 +512,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "${{ steps.release_tag.outputs.tag }}"
-          name: "OpenWrt ${{ steps.release_tag.outputs.tag }}"
+          name: "OpenWrt ${{ needs.check-version.outputs.latest_tag }}"
           
           body_path: "release/note.md"
           files: |
