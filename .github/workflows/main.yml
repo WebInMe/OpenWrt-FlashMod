@@ -444,7 +444,7 @@ jobs:
 
   release:
     needs: [check-version, build]
-    if: always()
+    if: success()
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
