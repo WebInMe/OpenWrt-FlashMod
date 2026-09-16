@@ -251,7 +251,7 @@ jobs:
 
           echo ""
           echo "Changed files:"
-          git diff --stat HEAD
+          git diff HEAD
           
         else
           echo "⚠️ No patch for this device – skipping patch step"
