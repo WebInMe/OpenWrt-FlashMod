@@ -248,6 +248,11 @@ jobs:
           PATCH_FILE="${GITHUB_WORKSPACE}/DEVICES/${DEVICE}/${PATCH}.patch"
           echo "✅ Applying patch: $PATCH_FILE"
           git apply "$PATCH_FILE" --allow-empty || true
+
+          echo ""
+          echo "Changed files:"
+          git diff --stat HEAD
+          
         else
           echo "⚠️ No patch for this device – skipping patch step"
         fi
