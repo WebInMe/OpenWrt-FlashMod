@@ -525,8 +525,10 @@ jobs:
             release/*.itb
             release/*.img
             release/*.ubi
+            release/*.fip
             release/*.manifest
             release/**/*.bin
+            release/**/*.fip
             release/**/*.itb
             release/**/*.img
             release/**/*.ubi
