@@ -1,0 +1,1 @@
+nmbm0:1024k(bl2),512k(u-boot-env),2048k(factory),2048k(fip),458752k(ubi)
