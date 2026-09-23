@@ -6,7 +6,7 @@ diff --git a/target/linux/mediatek/dts/mt7986a-xiaomi-redmi-router-ax6000-stock.
  	mediatek,nmbm;
  	mediatek,bmt-max-ratio = <1>;
 -	mediatek,bmt-max-reserved-blocks = <64>;
-+	/* must match the NMBM table written by the bootloader (256 blocks) */
++	/* must match the NMBM table written by the bootloader (128 blocks) */
 +	mediatek,bmt-max-reserved-blocks = <128>;
  };
  
