@@ -1,12 +1,25 @@
 diff --git a/target/linux/mediatek/dts/mt7986a-xiaomi-redmi-router-ax6000-stock.dts b/target/linux/mediatek/dts/mt7986a-xiaomi-redmi-router-ax6000-stock.dts
-index 114076dffc..197cb585cb 100644
 --- a/target/linux/mediatek/dts/mt7986a-xiaomi-redmi-router-ax6000-stock.dts
 +++ b/target/linux/mediatek/dts/mt7986a-xiaomi-redmi-router-ax6000-stock.dts
-@@ -34,6 +34,6 @@
+@@ -11,7 +11,8 @@
+ &spi_nand_flash {
+ 	mediatek,nmbm;
+ 	mediatek,bmt-max-ratio = <1>;
+-	mediatek,bmt-max-reserved-blocks = <64>;
++	/* must match the NMBM table written by the bootloader (256 blocks) */
++	mediatek,bmt-max-reserved-blocks = <256>;
+ };
  
+ &partitions {
+@@ -34,6 +35,10 @@
+ 
++	/*
++	 * W25N04KV (512 MiB): NMBM reserves the last 256 blocks, so the
++	 * logical device ends at 0x1e000000. ubi takes everything up to it.
++	 */
  	partition@2400000 {
  		label = "ubi";
 -		reg = <0x2400000 0x5000000>;
-+		reg = <0x2400000 0x1BC00000>;
++		reg = <0x2400000 0x1bc00000>;
  	};
  };
